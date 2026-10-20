@@ -1,0 +1,857 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Aging Survey Explorer</title>
+<meta name="description" content="Compare survey answers about aging across age, gender, location and survey group, including themes in open-ended answers.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400&display=swap">
+<style>
+/* Standalone theme: the tokens the explorer page expects, light + dark. */
+:root {
+  color-scheme: light;
+  --font-anthropic-sans: "Source Sans 3", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-anthropic-serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --color-bg: #f6f6f3; --color-panel: #fcfcfb; --color-fg: #0b0b0b; --color-fg-muted: #5f5e5a;
+  --color-border-line: #e2e1dc; --color-bad: #c43c3b; --color-ok: #1d7a3a; --color-warn: #a86a00;
+  --cds-text-secondary: #52514e; --cds-surface-popover: #ffffff; --cds-border: #d8d7d1;
+  --cds-shadow-popover: 0 4px 16px rgba(20, 20, 18, .12);
+  --cds-chart-grid: #ecebe6; --cds-chart-axis: #c9c8c1; --cds-chart-muted: #c7c6bf; --cds-chart-reference: #6d6c66;
+  --cds-font-size-caption: 0.8125rem; --cds-font-size-body: 0.9375rem; --cds-font-size-heading: 1.0625rem; --cds-font-size-title: 1.875rem;
+  --cds-font-weight-medium: 600;
+  --cds-gap-xs: 4px; --cds-gap-sm: 8px; --cds-gap-md: 16px; --cds-gap-lg: 24px; --cds-gap-xl: 40px;
+  --cds-pad-xs: 4px; --cds-pad-sm: 8px; --cds-pad-md: 12px; --cds-pad-lg: 20px; --cds-pad-xl: 28px;
+  --cds-radius: 10px; --cds-dur-slow: 300ms;
+  --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100;
+  --series-5: #e87ba4; --series-6: #008300; --series-7: #6250d6; --series-8: #e34948;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --color-bg: #121211; --color-panel: #1a1a19; --color-fg: #f0efec; --color-fg-muted: #a9a89f;
+    --color-border-line: #2e2e2c; --color-bad: #e66767; --color-ok: #4cb46b; --color-warn: #e0a43a;
+    --cds-text-secondary: #c3c2b7; --cds-surface-popover: #232322; --cds-border: #3a3a37;
+    --cds-shadow-popover: 0 4px 16px rgba(0, 0, 0, .5);
+    --cds-chart-grid: #2a2a28; --cds-chart-axis: #4a4a46; --cds-chart-muted: #55554f; --cds-chart-reference: #b3b2aa;
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500;
+    --series-5: #d55181; --series-6: #008300; --series-7: #9085e9; --series-8: #e66767;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: #121211; --color-panel: #1a1a19; --color-fg: #f0efec; --color-fg-muted: #a9a89f;
+  --color-border-line: #2e2e2c; --color-bad: #e66767; --color-ok: #4cb46b; --color-warn: #e0a43a;
+  --cds-text-secondary: #c3c2b7; --cds-surface-popover: #232322; --cds-border: #3a3a37;
+  --cds-shadow-popover: 0 4px 16px rgba(0, 0, 0, .5);
+  --cds-chart-grid: #2a2a28; --cds-chart-axis: #4a4a46; --cds-chart-muted: #55554f; --cds-chart-reference: #b3b2aa;
+  --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500;
+  --series-5: #d55181; --series-6: #008300; --series-7: #9085e9; --series-8: #e66767;
+}
+html { background: var(--color-bg); }
+body { margin: 0; background: var(--color-bg); color: var(--color-fg); font-family: var(--font-anthropic-sans); font-size: 15px; -webkit-font-smoothing: antialiased; }
+#dash-root { padding-block: 32px 56px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.dash-skeleton { position: relative; color: transparent !important; }
+.dash-skeleton:empty { min-height: 120px; border-radius: var(--cds-radius); background: var(--cds-chart-grid); }
+span.dash-skeleton, p.dash-skeleton { display: inline-block; min-width: 3ch; border-radius: 4px; background: var(--cds-chart-grid); }
+p.dash-skeleton { display: block; min-height: 1.4em; max-width: 40ch; }
+.site-foot { max-width: 1180px; margin: 48px auto 0; color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); line-height: 1.5; }
+.site-foot a { color: inherit; }
+@media (prefers-reduced-motion: no-preference) { .dash-skeleton:empty { animation: sk 1.4s ease-in-out infinite; } @keyframes sk { 50% { opacity: .55; } } }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script>
+/* Minimal stand-in for the claude.ai dashboard runtime: loads data/survey_responses.json,
+   runs the page's calculations, and redraws on filter changes and resizes. */
+(() => {
+  const DATA_URL = 'data/survey_responses.json';
+  const datasets = { survey: { status: 'loading', data: [] } };
+  const calcs = new Map();
+  const cache = new Map();
+  const listeners = [];
+  let params = { dim: 'age_cat', q: 'q7', theme: null, qseg: null, scope: 'all' };
+  const defaults = { ...params };
+  const css = (name) => `var(${name})`;
+  const notify = () => { for (const fn of listeners) { try { fn(); } catch (e) { console.error(e); } } };
+  const resolve = (id) => {
+    if (datasets[id]) return datasets[id];
+    if (!calcs.has(id)) return { status: 'missing', data: [] };
+    if (cache.has(id)) return cache.get(id);
+    const c = calcs.get(id);
+    const ins = c.inputs.map(resolve);
+    if (ins.some((d) => d.status !== 'ok')) {
+      const st = ins.find((d) => d.status !== 'ok').status;
+      return { status: st, data: [] };
+    }
+    let out;
+    try { out = { status: 'ok', data: c.fn(...ins.map((d) => d.data)) }; } catch (e) { console.error(e); out = { status: 'error', data: [], message: String(e) }; }
+    cache.set(id, out);
+    return out;
+  };
+  window.dash = {
+    colors: [1, 2, 3, 4, 5, 6, 7, 8].map((i) => css(`--series-${i}`)),
+    data: (id) => { const d = resolve(id); return { status: d.status, data: d.data, message: d.message, refreshing: false, meta: [] }; },
+    calc: (id, def) => { calcs.set(id, def); },
+    loader: () => {},
+    onData: (fn) => { listeners.push(fn); try { fn(); } catch (e) { console.error(e); } },
+    params: () => ({ ...params }),
+    setParams: (o) => { params = { ...params, ...o }; notify(); },
+    resetParams: () => { params = { ...defaults }; notify(); },
+    setLink: (name) => { try { history.replaceState(null, '', `#${name}`); } catch (e) { /* ignore */ } },
+    refresh: () => {},
+  };
+  fetch(DATA_URL).then((r) => { if (!r.ok) throw new Error(r.statusText); return r.json(); })
+    .then((rows) => { datasets.survey = { status: 'ok', data: rows }; cache.clear(); notify(); })
+    .catch((e) => { console.error(e); datasets.survey = { status: 'error', data: [], message: String(e) }; notify(); });
+  let t;
+  let lastW = window.innerWidth;
+  window.addEventListener('resize', () => {
+    clearTimeout(t);
+    t = setTimeout(() => { if (window.innerWidth !== lastW) { lastW = window.innerWidth; notify(); } }, 150);
+  });
+})();
+</script>
+</head>
+<body>
+<div id="dash-root">
+<style>
+/* Layout: header + one "compare by" control row, then sections of dot-plot cards (one row per answer option, one dot per demographic group). */
+.ax { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--cds-gap-xl); font-family: var(--font-anthropic-sans); color: var(--color-fg); max-width: 1180px; margin-inline: auto; }
+.ax-head { display: grid; gap: var(--cds-gap-sm); }
+.ax-title { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); margin: 0; text-wrap: balance; }
+.ax-sub { margin: 0; color: var(--color-fg-muted); font-size: var(--cds-font-size-body); }
+.ax-take { margin: 0; font-size: var(--cds-font-size-body); max-width: 70ch; line-height: 1.5; }
+.ax-take b { font-weight: 600; }
+.ax-controls { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--cds-gap-sm); }
+.ax-label { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); letter-spacing: .02em; }
+.ax-seg { display: flex; flex-wrap: wrap; gap: var(--cds-gap-xs); }
+.ax-seg button { font: inherit; font-size: var(--cds-font-size-caption); padding: var(--cds-pad-xs) var(--cds-pad-sm); border-radius: 999px; border: 1px solid var(--color-border-line); background: var(--color-panel); color: var(--color-fg); cursor: pointer; }
+.ax-seg button:disabled { opacity: .4; cursor: not-allowed; }
+.ax-seg button[aria-pressed="true"] { background: var(--color-fg); color: var(--color-bg); border-color: var(--color-fg); }
+.ax-seg button:focus-visible, .ax-chip:focus-visible, .ax-select:focus-visible { outline: 2px solid var(--color-fg); outline-offset: 2px; }
+.ax-legend { display: flex; flex-wrap: wrap; gap: var(--cds-gap-xs) var(--cds-gap-md); align-items: center; min-height: 1.5rem; font-size: var(--cds-font-size-caption); }
+.ax-legend span.it { display: inline-flex; align-items: center; gap: 6px; }
+.ax-legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.ax-legend .n { color: var(--color-fg-muted); font-variant-numeric: tabular-nums; }
+.ax-legend .note { color: var(--color-fg-muted); }
+.ax-section { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--cds-gap-md); min-width: 0; }
+.ax-section > h2 { margin: 0; font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); }
+.ax-grid { display: grid; gap: var(--cds-gap-md); grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); min-width: 0; }
+.ax-card { position: relative; background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-lg); display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--cds-gap-sm); align-content: start; min-width: 0; }
+.ax-card h3 { margin: 0; font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); }
+.ax-note { margin: 0; color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); line-height: 1.45; }
+.ax-chart { position: relative; min-height: 120px; }
+.ax-chart svg { display: block; overflow: visible; }
+.ax-chart text { font-family: var(--font-anthropic-sans); }
+.ax-tip { position: absolute; z-index: 5; pointer-events: none; background: var(--cds-surface-popover); border: 1px solid var(--cds-border); border-radius: var(--cds-radius); box-shadow: var(--cds-shadow-popover); padding: var(--cds-pad-xs) var(--cds-pad-sm); font-size: var(--cds-font-size-caption); min-width: 11rem; max-width: 18rem; }
+.ax-tip .h { color: var(--cds-text-secondary); margin-bottom: 4px; }
+.ax-tip .l { display: grid; grid-template-columns: 10px 1fr auto; gap: 6px; align-items: center; font-variant-numeric: tabular-nums; }
+.ax-tip .l i { width: 8px; height: 8px; border-radius: 50%; }
+.ax-tip .l .v { text-align: right; }
+.ax-tip .l .m { color: var(--color-fg-muted); }
+.ax-tip .f { color: var(--color-fg-muted); margin-top: 4px; }
+.ax-row-hit { cursor: pointer; }
+.ax-qbar { display: flex; flex-wrap: wrap; gap: var(--cds-gap-sm); align-items: center; }
+.ax-select { font: inherit; font-size: var(--cds-font-size-body); padding: var(--cds-pad-xs) var(--cds-pad-sm); border-radius: var(--cds-radius); border: 1px solid var(--color-border-line); background: var(--color-panel); color: var(--color-fg); max-width: 100%; min-width: 0; flex: 1 1 16rem; text-overflow: ellipsis; }
+.ax-gaps { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--cds-gap-sm); }
+.ax-gaps li { display: grid; gap: 2px; padding-bottom: var(--cds-gap-sm); border-bottom: 1px solid var(--color-border-line); font-size: var(--cds-font-size-caption); }
+.ax-gaps li:last-child { border-bottom: 0; }
+.ax-gaps .t { font-size: var(--cds-font-size-body); }
+.ax-gaps .q { color: var(--color-fg-muted); }
+.ax-gaps .bar { display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+.ax-gaps .bar i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.ax-chips { display: flex; flex-wrap: wrap; gap: var(--cds-gap-xs); }
+.ax-chip { font: inherit; font-size: var(--cds-font-size-caption); padding: 2px 10px; border-radius: 999px; border: 1px solid var(--color-border-line); background: transparent; color: var(--color-fg); cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+.ax-chip[aria-pressed="true"] { background: var(--color-fg); color: var(--color-bg); border-color: var(--color-fg); }
+.ax-chip i { width: 8px; height: 8px; border-radius: 50%; }
+.ax-quotes { max-height: 26rem; overflow: auto; border-top: 1px solid var(--color-border-line); }
+.ax-quotes table { width: 100%; border-collapse: collapse; font-size: var(--cds-font-size-caption); }
+.ax-quotes th { position: sticky; top: 0; background: var(--color-panel); text-align: left; font-weight: var(--cds-font-weight-medium); color: var(--color-fg-muted); padding: var(--cds-pad-xs) var(--cds-pad-sm); border-bottom: 1px solid var(--color-border-line); }
+.ax-quotes td { padding: var(--cds-pad-xs) var(--cds-pad-sm); vertical-align: top; border-bottom: 1px solid var(--color-border-line); line-height: 1.45; }
+.ax-quotes td:first-child, .ax-quotes td:nth-child(2) { white-space: nowrap; color: var(--color-fg-muted); font-variant-numeric: tabular-nums; }
+.ax-count { font-variant-numeric: tabular-nums; }
+[data-dash-source-state=empty] { color: transparent; }
+[data-dash-source-state=refreshing] { opacity: .5; transition: opacity var(--cds-dur-slow); }
+.ax-fail { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 120px; color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
+.ax-fail::before { content: ""; width: .375rem; height: .375rem; border-radius: 50%; background: var(--color-bad); }
+</style>
+
+<div class="ax">
+  <header class="ax-head" id="top">
+    <h1 class="ax-title">Aging Survey Explorer</h1>
+    <p class="ax-sub"><span class="ax-count dash-skeleton" id="total" data-source="segments" data-field="n" data-where="scope=all&amp;dim=all&amp;segment=All%20respondents">—</span> <span id="total-label">respondents across 8 survey groups.</span> Pick a demographic to compare; every chart redraws with one dot per group.</p>
+    <p class="ax-take dash-skeleton" id="takeaway" data-source="gaps">—</p>
+  </header>
+
+  <div class="ax-controls" id="controls">
+    <span class="ax-label" id="scope-label">Respondents</span>
+    <div class="ax-seg" id="scopes" role="group" aria-labelledby="scope-label"></div>
+    <span class="ax-label" id="compare-label">Compare by</span>
+    <div class="ax-seg" id="dims" role="group" aria-labelledby="compare-label"></div>
+    <div class="ax-legend dash-skeleton" id="legend" data-source="segments">—</div>
+  </div>
+
+  <section class="ax-section" id="priorities">
+    <h2>Topic priorities</h2>
+    <div class="ax-grid">
+      <div class="ax-card" id="card-rank-p">
+        <h3>Ranked #1 for you personally</h3>
+        <p class="ax-note">Share who put each topic first. The grey tick marks all respondents.</p>
+        <div class="ax-chart dash-skeleton" id="chart-rank-p" data-source="ranks"></div>
+      </div>
+      <div class="ax-card" id="card-rank-s">
+        <h3>Ranked #1 for society</h3>
+        <p class="ax-note">Share who put each topic first when thinking about society as a whole.</p>
+        <div class="ax-chart dash-skeleton" id="chart-rank-s" data-source="ranks"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="ax-section" id="attitudes">
+    <h2>Attitudes toward aging research</h2>
+    <div class="ax-grid">
+      <div class="ax-card" id="card-yes">
+        <h3>Share answering yes</h3>
+        <p class="ax-note">Some groups asked these as yes/no and others as a 1–5 rating, so each chart only covers the groups that asked it that way.</p>
+        <div class="ax-chart dash-skeleton" id="chart-yes" data-source="attitudes"></div>
+      </div>
+      <div class="ax-card" id="card-rating">
+        <h3>Average rating (1–5)</h3>
+        <p class="ax-note">Groups 3, 4, 6 and 7 rated these from 1 (not at all) to 5 (very much).</p>
+        <div class="ax-chart dash-skeleton" id="chart-rating" data-source="attitudes"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="ax-section" id="estimate">
+    <h2>How big is the 65+ population?</h2>
+    <div class="ax-grid">
+      <div class="ax-card" id="card-bins">
+        <h3>Guess of the US share aged 65+</h3>
+        <p class="ax-note">The actual figure is 18.0% (US Census Bureau, 2024), inside the 16–20% band.</p>
+        <div class="ax-chart dash-skeleton" id="chart-bins" data-source="estimate"></div>
+      </div>
+      <div class="ax-card" id="card-median">
+        <h3>Median numeric guess</h3>
+        <p class="ax-note">Groups that typed a number (all but 4 and 6). Dashed line: actual 18.0%.</p>
+        <div class="ax-chart dash-skeleton" id="chart-median" data-source="median_guess"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="ax-section" id="topics">
+    <h2>Most exciting and most concerning topic</h2>
+    <div class="ax-grid">
+      <div class="ax-card" id="card-excite">
+        <h3>Most exciting topic</h3>
+        <p class="ax-note">Groups 2, 4, 6 and 8 asked respondents to pick one.</p>
+        <div class="ax-chart dash-skeleton" id="chart-excite" data-source="topics"></div>
+      </div>
+      <div class="ax-card" id="card-concern">
+        <h3>Most concerning topic</h3>
+        <p class="ax-note">Groups 2 and 8 asked respondents to pick one.</p>
+        <div class="ax-chart dash-skeleton" id="chart-concern" data-source="topics"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="ax-section" id="themes">
+    <h2>Themes in open-ended answers</h2>
+    <div class="ax-qbar">
+      <label class="ax-label" for="qsel">Question</label>
+      <select class="ax-select" id="qsel"></select>
+    </div>
+    <div class="ax-grid">
+      <div class="ax-card" id="card-themes">
+        <h3 id="themes-title">Themes mentioned</h3>
+        <p class="ax-note">Share of answers that mention each theme; one answer can mention several. Click a theme to read the answers.</p>
+        <div class="ax-chart dash-skeleton" id="chart-themes" data-source="themes"></div>
+      </div>
+      <div class="ax-card" id="card-gaps">
+        <h3>Biggest differences</h3>
+        <p class="ax-note">Themes, across all open questions, where groups differ most (groups with at least 20 answers, or 10 when showing only Group 2).</p>
+        <ul class="ax-gaps dash-skeleton" id="gaps" data-source="gaps"></ul>
+      </div>
+    </div>
+    <div class="ax-card" id="card-quotes">
+      <h3 id="quotes-title">Answers</h3>
+      <p class="ax-note" id="quotes-note"><span class="ax-count" id="quotes-count" data-source="themes" data-field="count" data-where="scope=all&amp;dim=all&amp;segment=All%20respondents&amp;question=q7&amp;theme=Chronic%20disease%20%26%20physical%20health">—</span> answers have this theme. The longest 30 are shown.</p>
+      <div class="ax-chips" id="quote-segs"></div>
+      <div class="ax-quotes">
+        <table id="quotes" data-source="survey" data-row-key="id">
+          <thead><tr><th data-field="id">Respondent</th><th id="qcol-seg" data-field="age_cat">Group</th><th id="qcol-ans" data-field="x_q7">Answer</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+// ---------- calculations (each reads the survey rows; shares are whole percents) ----------
+// Every calc runs twice: scope "all" (every respondent) and scope "g2" (Group 2 only, split by demographics).
+dash.calc('segments', {
+  inputs: ['survey'], title: 'Respondents per group',
+  description: 'Number of respondents in each demographic group, for all respondents and for Group 2 only.',
+  fn: (survey) => {
+    const DIMS = { all: ['All respondents'], age_cat: ['Student', 'Middle-aged', 'Elderly (65+)'], age_decade: ['Under 20', '20s', '30s', '40s', '50s', '60s', '70+'], age_gender: ['Student · Female', 'Student · Male', 'Middle-aged · Female', 'Middle-aged · Male', 'Elderly (65+) · Female', 'Elderly (65+) · Male'], gender: ['Female', 'Male', 'Another / not stated'], res_region: ['United States', 'China', 'Other countries'], from_region: ['United States', 'China', 'Other countries'], mobility: ['From US, lives in US', 'From abroad, lives in US', 'Lives outside US'], group: ['Group 1', 'Group 2', 'Group 3', 'Group 4', 'Group 5', 'Group 6', 'Group 7', 'Group 8'], g2_vs_rest: ['Group 2', 'Other groups'] };
+    const G2_DIMS = ['all', 'age_cat', 'age_decade', 'age_gender', 'gender', 'res_region', 'from_region', 'mobility'];
+    const decade = (a) => (a == null ? null : a < 20 ? 'Under 20' : a >= 70 ? '70+' : `${Math.floor(a / 10) * 10}s`);
+    const ageGender = (r) => (r.age_cat && (r.gender === 'Female' || r.gender === 'Male') ? `${r.age_cat} · ${r.gender}` : null);
+    const val = (r, dim) => (dim === 'g2_vs_rest' ? (r.group === 'Group 2' ? 'Group 2' : 'Other groups') : dim === 'age_decade' ? decade(r.age) : dim === 'age_gender' ? ageGender(r) : r[dim]);
+    const out = [];
+    for (const scope of ['all', 'g2']) {
+      const base = scope === 'g2' ? survey.filter((r) => r.group === 'Group 2') : survey;
+      for (const [dim, segs] of Object.entries(DIMS)) {
+        if (scope === 'g2' && !G2_DIMS.includes(dim)) continue;
+        for (const segment of segs) out.push({ scope, dim, segment, n: base.filter((r) => dim === 'all' || val(r, dim) === segment).length });
+      }
+    }
+    return out;
+  },
+});
+
+dash.calc('ranks', {
+  inputs: ['survey'], title: 'Topic ranked first, by group',
+  description: 'Percent of respondents in each group who ranked each topic #1 (personal and societal), and the mean rank.',
+  fn: (survey) => {
+    const DIMS = { all: ['All respondents'], age_cat: ['Student', 'Middle-aged', 'Elderly (65+)'], age_decade: ['Under 20', '20s', '30s', '40s', '50s', '60s', '70+'], age_gender: ['Student · Female', 'Student · Male', 'Middle-aged · Female', 'Middle-aged · Male', 'Elderly (65+) · Female', 'Elderly (65+) · Male'], gender: ['Female', 'Male', 'Another / not stated'], res_region: ['United States', 'China', 'Other countries'], from_region: ['United States', 'China', 'Other countries'], mobility: ['From US, lives in US', 'From abroad, lives in US', 'Lives outside US'], group: ['Group 1', 'Group 2', 'Group 3', 'Group 4', 'Group 5', 'Group 6', 'Group 7', 'Group 8'], g2_vs_rest: ['Group 2', 'Other groups'] };
+    const G2_DIMS = ['all', 'age_cat', 'age_decade', 'age_gender', 'gender', 'res_region', 'from_region', 'mobility'];
+    const decade = (a) => (a == null ? null : a < 20 ? 'Under 20' : a >= 70 ? '70+' : `${Math.floor(a / 10) * 10}s`);
+    const ageGender = (r) => (r.age_cat && (r.gender === 'Female' || r.gender === 'Male') ? `${r.age_cat} · ${r.gender}` : null);
+    const val = (r, dim) => (dim === 'g2_vs_rest' ? (r.group === 'Group 2' ? 'Group 2' : 'Other groups') : dim === 'age_decade' ? decade(r.age) : dim === 'age_gender' ? ageGender(r) : r[dim]);
+    const out = [];
+    for (const scope of ['all', 'g2']) {
+      const base = scope === 'g2' ? survey.filter((r) => r.group === 'Group 2') : survey;
+      for (const [dim, segs] of Object.entries(DIMS)) {
+        if (scope === 'g2' && !G2_DIMS.includes(dim)) continue;
+        for (const segment of segs) {
+          const rs = base.filter((r) => dim === 'all' || val(r, dim) === segment);
+          for (const kind of ['personal', 'societal']) for (const topic of [1, 2, 3]) {
+            const v = rs.map((r) => r[`rank_${kind[0]}${topic}`]).filter((x) => x != null);
+            const firsts = v.filter((x) => x === 1).length;
+            out.push({ scope, dim, segment, kind, topic, first_pct: v.length ? Math.round(100 * firsts / v.length) : null,
+              mean_rank: v.length ? Math.round(100 * v.reduce((a, b) => a + b, 0) / v.length) / 100 : null, n: v.length });
+          }
+        }
+      }
+    }
+    return out;
+  },
+});
+
+dash.calc('attitudes', {
+  inputs: ['survey'], title: 'Yes shares and ratings, by group',
+  description: 'Percent answering yes (ethics, excitement, bioengineers) and mean 1–5 ratings, per group.',
+  fn: (survey) => {
+    const DIMS = { all: ['All respondents'], age_cat: ['Student', 'Middle-aged', 'Elderly (65+)'], age_decade: ['Under 20', '20s', '30s', '40s', '50s', '60s', '70+'], age_gender: ['Student · Female', 'Student · Male', 'Middle-aged · Female', 'Middle-aged · Male', 'Elderly (65+) · Female', 'Elderly (65+) · Male'], gender: ['Female', 'Male', 'Another / not stated'], res_region: ['United States', 'China', 'Other countries'], from_region: ['United States', 'China', 'Other countries'], mobility: ['From US, lives in US', 'From abroad, lives in US', 'Lives outside US'], group: ['Group 1', 'Group 2', 'Group 3', 'Group 4', 'Group 5', 'Group 6', 'Group 7', 'Group 8'], g2_vs_rest: ['Group 2', 'Other groups'] };
+    const G2_DIMS = ['all', 'age_cat', 'age_decade', 'age_gender', 'gender', 'res_region', 'from_region', 'mobility'];
+    const decade = (a) => (a == null ? null : a < 20 ? 'Under 20' : a >= 70 ? '70+' : `${Math.floor(a / 10) * 10}s`);
+    const ageGender = (r) => (r.age_cat && (r.gender === 'Female' || r.gender === 'Male') ? `${r.age_cat} · ${r.gender}` : null);
+    const val = (r, dim) => (dim === 'g2_vs_rest' ? (r.group === 'Group 2' ? 'Group 2' : 'Other groups') : dim === 'age_decade' ? decade(r.age) : dim === 'age_gender' ? ageGender(r) : r[dim]);
+    const METRICS = [['ethics_yn', 'yes'], ['excited_yn', 'yes'], ['bio_yn', 'yes'], ['excited_r', 'mean'], ['bio_r', 'mean']];
+    const out = [];
+    for (const scope of ['all', 'g2']) {
+      const base = scope === 'g2' ? survey.filter((r) => r.group === 'Group 2') : survey;
+      for (const [dim, segs] of Object.entries(DIMS)) {
+        if (scope === 'g2' && !G2_DIMS.includes(dim)) continue;
+        for (const segment of segs) {
+          const rs = base.filter((r) => dim === 'all' || val(r, dim) === segment);
+          for (const [metric, kind] of METRICS) {
+            const v = rs.map((r) => r[metric]).filter((x) => x != null);
+            const value = !v.length ? null : kind === 'yes'
+              ? Math.round(100 * v.filter((x) => x === 'Yes').length / v.length)
+              : Math.round(100 * v.reduce((a, b) => a + b, 0) / v.length) / 100;
+            out.push({ scope, dim, segment, metric, value, n: v.length });
+          }
+        }
+      }
+    }
+    return out;
+  },
+});
+
+dash.calc('estimate', {
+  inputs: ['survey'], title: 'Guess of 65+ share, by band',
+  description: 'Percent of each group whose guess of the US 65+ share falls in each band.',
+  fn: (survey) => {
+    const DIMS = { all: ['All respondents'], age_cat: ['Student', 'Middle-aged', 'Elderly (65+)'], age_decade: ['Under 20', '20s', '30s', '40s', '50s', '60s', '70+'], age_gender: ['Student · Female', 'Student · Male', 'Middle-aged · Female', 'Middle-aged · Male', 'Elderly (65+) · Female', 'Elderly (65+) · Male'], gender: ['Female', 'Male', 'Another / not stated'], res_region: ['United States', 'China', 'Other countries'], from_region: ['United States', 'China', 'Other countries'], mobility: ['From US, lives in US', 'From abroad, lives in US', 'Lives outside US'], group: ['Group 1', 'Group 2', 'Group 3', 'Group 4', 'Group 5', 'Group 6', 'Group 7', 'Group 8'], g2_vs_rest: ['Group 2', 'Other groups'] };
+    const G2_DIMS = ['all', 'age_cat', 'age_decade', 'age_gender', 'gender', 'res_region', 'from_region', 'mobility'];
+    const decade = (a) => (a == null ? null : a < 20 ? 'Under 20' : a >= 70 ? '70+' : `${Math.floor(a / 10) * 10}s`);
+    const ageGender = (r) => (r.age_cat && (r.gender === 'Female' || r.gender === 'Male') ? `${r.age_cat} · ${r.gender}` : null);
+    const val = (r, dim) => (dim === 'g2_vs_rest' ? (r.group === 'Group 2' ? 'Group 2' : 'Other groups') : dim === 'age_decade' ? decade(r.age) : dim === 'age_gender' ? ageGender(r) : r[dim]);
+    const BINS = ['15% or less', '16–20%', '21–30%', 'Over 30%', 'Not sure'];
+    const out = [];
+    for (const scope of ['all', 'g2']) {
+      const base = scope === 'g2' ? survey.filter((r) => r.group === 'Group 2') : survey;
+      for (const [dim, segs] of Object.entries(DIMS)) {
+        if (scope === 'g2' && !G2_DIMS.includes(dim)) continue;
+        for (const segment of segs) {
+          const v = base.filter((r) => (dim === 'all' || val(r, dim) === segment) && r.pct_bin != null);
+          for (const bin of BINS)
+            out.push({ scope, dim, segment, bin, pct: v.length ? Math.round(100 * v.filter((r) => r.pct_bin === bin).length / v.length) : null, n: v.length });
+        }
+      }
+    }
+    return out;
+  },
+});
+
+dash.calc('median_guess', {
+  inputs: ['survey'], title: 'Median guess of 65+ share',
+  description: 'Median of the numeric guesses of the US 65+ share, per group.',
+  fn: (survey) => {
+    const DIMS = { all: ['All respondents'], age_cat: ['Student', 'Middle-aged', 'Elderly (65+)'], age_decade: ['Under 20', '20s', '30s', '40s', '50s', '60s', '70+'], age_gender: ['Student · Female', 'Student · Male', 'Middle-aged · Female', 'Middle-aged · Male', 'Elderly (65+) · Female', 'Elderly (65+) · Male'], gender: ['Female', 'Male', 'Another / not stated'], res_region: ['United States', 'China', 'Other countries'], from_region: ['United States', 'China', 'Other countries'], mobility: ['From US, lives in US', 'From abroad, lives in US', 'Lives outside US'], group: ['Group 1', 'Group 2', 'Group 3', 'Group 4', 'Group 5', 'Group 6', 'Group 7', 'Group 8'], g2_vs_rest: ['Group 2', 'Other groups'] };
+    const G2_DIMS = ['all', 'age_cat', 'age_decade', 'age_gender', 'gender', 'res_region', 'from_region', 'mobility'];
+    const decade = (a) => (a == null ? null : a < 20 ? 'Under 20' : a >= 70 ? '70+' : `${Math.floor(a / 10) * 10}s`);
+    const ageGender = (r) => (r.age_cat && (r.gender === 'Female' || r.gender === 'Male') ? `${r.age_cat} · ${r.gender}` : null);
+    const val = (r, dim) => (dim === 'g2_vs_rest' ? (r.group === 'Group 2' ? 'Group 2' : 'Other groups') : dim === 'age_decade' ? decade(r.age) : dim === 'age_gender' ? ageGender(r) : r[dim]);
+    const out = [];
+    for (const scope of ['all', 'g2']) {
+      const base = scope === 'g2' ? survey.filter((r) => r.group === 'Group 2') : survey;
+      for (const [dim, segs] of Object.entries(DIMS)) {
+        if (scope === 'g2' && !G2_DIMS.includes(dim)) continue;
+        for (const segment of segs) {
+          const v = base.filter((r) => (dim === 'all' || val(r, dim) === segment) && r.pct_est != null).map((r) => r.pct_est).sort((a, b) => a - b);
+          const m = v.length ? (v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2) : null;
+          out.push({ scope, dim, segment, median: m, n: v.length });
+        }
+      }
+    }
+    return out;
+  },
+});
+
+dash.calc('topics', {
+  inputs: ['survey'], title: 'Most exciting / concerning topic',
+  description: 'Percent of each group picking each topic as most exciting or most concerning.',
+  fn: (survey) => {
+    const DIMS = { all: ['All respondents'], age_cat: ['Student', 'Middle-aged', 'Elderly (65+)'], age_decade: ['Under 20', '20s', '30s', '40s', '50s', '60s', '70+'], age_gender: ['Student · Female', 'Student · Male', 'Middle-aged · Female', 'Middle-aged · Male', 'Elderly (65+) · Female', 'Elderly (65+) · Male'], gender: ['Female', 'Male', 'Another / not stated'], res_region: ['United States', 'China', 'Other countries'], from_region: ['United States', 'China', 'Other countries'], mobility: ['From US, lives in US', 'From abroad, lives in US', 'Lives outside US'], group: ['Group 1', 'Group 2', 'Group 3', 'Group 4', 'Group 5', 'Group 6', 'Group 7', 'Group 8'], g2_vs_rest: ['Group 2', 'Other groups'] };
+    const G2_DIMS = ['all', 'age_cat', 'age_decade', 'age_gender', 'gender', 'res_region', 'from_region', 'mobility'];
+    const decade = (a) => (a == null ? null : a < 20 ? 'Under 20' : a >= 70 ? '70+' : `${Math.floor(a / 10) * 10}s`);
+    const ageGender = (r) => (r.age_cat && (r.gender === 'Female' || r.gender === 'Male') ? `${r.age_cat} · ${r.gender}` : null);
+    const val = (r, dim) => (dim === 'g2_vs_rest' ? (r.group === 'Group 2' ? 'Group 2' : 'Other groups') : dim === 'age_decade' ? decade(r.age) : dim === 'age_gender' ? ageGender(r) : r[dim]);
+    const OPTS = ['Reproductive health & longevity', 'Democratizing longevity (access)', 'AI/ML for aging & health', 'All three equally', 'None of them'];
+    const out = [];
+    for (const scope of ['all', 'g2']) {
+      const base = scope === 'g2' ? survey.filter((r) => r.group === 'Group 2') : survey;
+      for (const [dim, segs] of Object.entries(DIMS)) {
+        if (scope === 'g2' && !G2_DIMS.includes(dim)) continue;
+        for (const segment of segs) for (const which of ['excite', 'concern']) {
+          const v = base.filter((r) => (dim === 'all' || val(r, dim) === segment) && r[`${which}_topic`] != null);
+          for (const topic of OPTS)
+            out.push({ scope, dim, segment, which, topic, pct: v.length ? Math.round(100 * v.filter((r) => r[`${which}_topic`] === topic).length / v.length) : null, n: v.length });
+        }
+      }
+    }
+    return out;
+  },
+});
+
+dash.calc('themes', {
+  inputs: ['survey'], title: 'Themes in open answers, by group',
+  description: 'For each open question, how many answers in each group carry each theme tag, and the percent of that group’s answers.',
+  fn: (survey) => {
+    const DIMS = { all: ['All respondents'], age_cat: ['Student', 'Middle-aged', 'Elderly (65+)'], age_decade: ['Under 20', '20s', '30s', '40s', '50s', '60s', '70+'], age_gender: ['Student · Female', 'Student · Male', 'Middle-aged · Female', 'Middle-aged · Male', 'Elderly (65+) · Female', 'Elderly (65+) · Male'], gender: ['Female', 'Male', 'Another / not stated'], res_region: ['United States', 'China', 'Other countries'], from_region: ['United States', 'China', 'Other countries'], mobility: ['From US, lives in US', 'From abroad, lives in US', 'Lives outside US'], group: ['Group 1', 'Group 2', 'Group 3', 'Group 4', 'Group 5', 'Group 6', 'Group 7', 'Group 8'], g2_vs_rest: ['Group 2', 'Other groups'] };
+    const G2_DIMS = ['all', 'age_cat', 'age_decade', 'age_gender', 'gender', 'res_region', 'from_region', 'mobility'];
+    const decade = (a) => (a == null ? null : a < 20 ? 'Under 20' : a >= 70 ? '70+' : `${Math.floor(a / 10) * 10}s`);
+    const ageGender = (r) => (r.age_cat && (r.gender === 'Female' || r.gender === 'Male') ? `${r.age_cat} · ${r.gender}` : null);
+    const val = (r, dim) => (dim === 'g2_vs_rest' ? (r.group === 'Group 2' ? 'Group 2' : 'Other groups') : dim === 'age_decade' ? decade(r.age) : dim === 'age_gender' ? ageGender(r) : r[dim]);
+    const QS = ['q5', 'q7', 'q8', 'q9', 'q10', 'q11', 'rank', 'excite', 'concern', 'ethics'];
+    const out = [];
+    for (const question of QS) {
+      const key = `t_${question}`;
+      const themes = [...new Set(survey.flatMap((r) => (r[key] ? r[key].split('|') : [])))];
+      for (const scope of ['all', 'g2']) {
+        const base = scope === 'g2' ? survey.filter((r) => r.group === 'Group 2') : survey;
+        for (const [dim, segs] of Object.entries(DIMS)) {
+          if (scope === 'g2' && !G2_DIMS.includes(dim)) continue;
+          for (const segment of segs) {
+            const v = base.filter((r) => (dim === 'all' || val(r, dim) === segment) && r[key]);
+            for (const theme of themes) {
+              const count = v.filter((r) => r[key].split('|').includes(theme)).length;
+              out.push({ scope, dim, segment, question, theme, count, pct: v.length ? Math.round(100 * count / v.length) : null, n: v.length });
+            }
+          }
+        }
+      }
+    }
+    return out;
+  },
+});
+
+dash.calc('gaps', {
+  inputs: ['themes'], title: 'Largest theme differences',
+  description: 'For each demographic (and for Group 2 alone), the themes whose percent differs most between its groups (groups with 20+ answers; 10+ within Group 2), top 12.',
+  fn: (themes) => {
+    const SKIP = ['Other', 'No answer / unsure', 'General / no specifics'];
+    const by = new Map();
+    for (const r of themes) {
+      if (r.dim === 'all' || SKIP.includes(r.theme) || r.n < (r.scope === 'g2' ? 10 : 20)) continue;
+      const k = `${r.scope}|${r.dim}|${r.question}|${r.theme}`;
+      if (!by.has(k)) by.set(k, []);
+      by.get(k).push(r);
+    }
+    const out = [];
+    for (const rs of by.values()) {
+      if (rs.length < 2) continue;
+      const hi = rs.reduce((a, b) => (b.pct > a.pct ? b : a));
+      const lo = rs.reduce((a, b) => (b.pct < a.pct ? b : a));
+      out.push({ scope: hi.scope, dim: hi.dim, question: hi.question, theme: hi.theme, hi_segment: hi.segment, hi_pct: hi.pct, lo_segment: lo.segment, lo_pct: lo.pct, gap: hi.pct - lo.pct });
+    }
+    const keys = [...new Set(out.map((r) => `${r.scope}|${r.dim}`))];
+    return keys.flatMap((k) => out.filter((r) => `${r.scope}|${r.dim}` === k).sort((a, b) => b.gap - a.gap).slice(0, 12));
+  },
+});
+
+// ---------- page ----------
+(() => {
+  const DIM_LABELS = { age_cat: 'Age group', age_decade: 'Age by decade', age_gender: 'Age & gender', gender: 'Gender', res_region: 'Where they live', from_region: 'Where they’re from', mobility: 'Origin & residence', group: 'Survey group', g2_vs_rest: 'Group 2 vs rest' };
+  const G2_DIMS = ['age_cat', 'age_decade', 'age_gender', 'gender', 'res_region', 'from_region', 'mobility'];
+  const SCOPES = { all: 'All groups', g2: 'Only Group 2' };
+  const decade = (a) => (a == null ? null : a < 20 ? 'Under 20' : a >= 70 ? '70+' : `${Math.floor(a / 10) * 10}s`);
+    const ageGender = (r) => (r.age_cat && (r.gender === 'Female' || r.gender === 'Male') ? `${r.age_cat} · ${r.gender}` : null);
+    const val = (r, dim) => (dim === 'g2_vs_rest' ? (r.group === 'Group 2' ? 'Group 2' : 'Other groups') : dim === 'age_decade' ? decade(r.age) : dim === 'age_gender' ? ageGender(r) : r[dim]);
+  const SEGS = { age_cat: ['Student', 'Middle-aged', 'Elderly (65+)'], age_decade: ['Under 20', '20s', '30s', '40s', '50s', '60s', '70+'], age_gender: ['Student · Female', 'Student · Male', 'Middle-aged · Female', 'Middle-aged · Male', 'Elderly (65+) · Female', 'Elderly (65+) · Male'], gender: ['Female', 'Male', 'Another / not stated'], res_region: ['United States', 'China', 'Other countries'], from_region: ['United States', 'China', 'Other countries'], mobility: ['From US, lives in US', 'From abroad, lives in US', 'Lives outside US'], group: ['Group 1', 'Group 2', 'Group 3', 'Group 4', 'Group 5', 'Group 6', 'Group 7', 'Group 8'], g2_vs_rest: ['Group 2', 'Other groups'] };
+  const SEG_NAMES = { res_region: { 'United States': 'Lives in US', China: 'Lives in China', 'Other countries': 'Lives elsewhere' }, from_region: { 'United States': 'From US', China: 'From China', 'Other countries': 'From elsewhere' } };
+  const segName = (dim, s) => (SEG_NAMES[dim] && SEG_NAMES[dim][s]) || s;
+  const QUESTIONS = { q5: 'Q5 · How would you define aging?', q7: 'Q7 · Greatest challenge facing the aging population', q8: 'Q8 · Challenge to solve in the short term', q9: 'Q9 · Is action being taken on it?', q10: 'Q10 · Three things to maintain through life', q11: 'Q11 · What you can do to maintain them', rank: 'Reason for the topic ranking', excite: 'What excites you about the topics', concern: 'Greatest concern about the topics', ethics: 'Ethical considerations' };
+  const QSHORT = { q5: 'definitions of aging', q7: 'the greatest challenge', q8: 'the short-term priority', q9: 'whether action is being taken', q10: 'things to maintain', q11: 'what they can do', rank: 'reasons for ranking', excite: 'what excites them', concern: 'their greatest concern', ethics: 'ethical considerations' };
+  const TOPICS = { 1: 'Reproductive health & longevity', 2: 'Democratizing longevity (access)', 3: 'AI/ML for aging & health' };
+  const TAIL = ['Other', 'General / no specifics', 'No answer / unsure'];
+  const MIN_N = 20;
+  const enc = (s) => String(s).replace(/%/g, '%25').replace(/&/g, '%26').replace(/=/g, '%3D');
+  const where = (o) => Object.entries(o).map(([k, v]) => `${k}=${enc(v)}`).join('&');
+
+  // controls
+  const dimsEl = document.getElementById('dims');
+  for (const [k, label] of Object.entries(DIM_LABELS)) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = label; b.dataset.dim = k; b.id = `dim-${k}`;
+    b.addEventListener('click', () => dash.setParams({ dim: k, qseg: null }));
+    dimsEl.appendChild(b);
+  }
+  const scopesEl = document.getElementById('scopes');
+  for (const [k, label] of Object.entries(SCOPES)) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = label; b.dataset.scope = k; b.id = `scope-${k}`;
+    b.addEventListener('click', () => {
+      const dim = dash.params().dim || 'age_cat';
+      dash.setParams(k === 'g2' && !G2_DIMS.includes(dim) ? { scope: k, dim: 'age_cat', qseg: null } : { scope: k, qseg: null });
+    });
+    scopesEl.appendChild(b);
+  }
+  const qsel = document.getElementById('qsel');
+  for (const [k, label] of Object.entries(QUESTIONS)) qsel.appendChild(new Option(label, k));
+  qsel.addEventListener('change', () => dash.setParams({ q: qsel.value, theme: null, qseg: null }));
+
+  const colorOf = (dim, s) => dash.colors[SEGS[dim].indexOf(s) % dash.colors.length];
+
+  // tooltip
+  function tip(card) {
+    let t = card.querySelector('.ax-tip');
+    if (!t) { t = document.createElement('div'); t.className = 'ax-tip'; t.hidden = true; card.appendChild(t); }
+    return t;
+  }
+  function showTip(card, evt, title, lines, foot) {
+    const t = tip(card);
+    t.replaceChildren();
+    const h = document.createElement('div'); h.className = 'h'; h.textContent = title; t.appendChild(h);
+    for (const l of lines) {
+      const row = document.createElement('div'); row.className = 'l';
+      const i = document.createElement('i'); i.style.background = l.color;
+      const n = document.createElement('span'); n.textContent = l.name;
+      const v = document.createElement('span'); v.className = 'v';
+      v.textContent = l.value;
+      if (l.meta) { const m = document.createElement('span'); m.className = 'm'; m.textContent = ` ${l.meta}`; v.appendChild(m); }
+      row.append(i, n, v); t.appendChild(row);
+    }
+    if (foot) { const f = document.createElement('div'); f.className = 'f'; f.textContent = foot; t.appendChild(f); }
+    t.hidden = false;
+    const cb = card.getBoundingClientRect();
+    let x = evt.clientX - cb.left + 14, y = evt.clientY - cb.top + 14;
+    const tw = t.offsetWidth, th = t.offsetHeight;
+    if (x + tw > cb.width - 4) x = Math.max(4, evt.clientX - cb.left - tw - 14);
+    if (y + th > cb.height - 4) y = Math.max(4, evt.clientY - cb.top - th - 14);
+    t.style.left = `${x}px`; t.style.top = `${y}px`;
+  }
+  const hideTip = (card) => { const t = card.querySelector('.ax-tip'); if (t) t.hidden = true; };
+
+  // dot plot: rows = answer options, one dot per group, grey tick = all respondents
+  function dotplot(el, rows, opt) {
+    el.replaceChildren();
+    el.classList.remove('dash-skeleton');
+    const card = el.closest('.ax-card');
+    const W = Math.max(260, el.clientWidth || 600);
+    const stacked = W < 560;
+    const fmt = opt.fmt;
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const svg = d3.select(el).append('svg').attr('width', '100%').attr('role', 'img').attr('aria-label', opt.aria || '');
+    // measure label widths
+    const probe = svg.append('text').attr('font-size', 13).attr('visibility', 'hidden');
+    let maxL = 0;
+    for (const r of rows) { probe.text(r.label); maxL = Math.max(maxL, probe.node().getComputedTextLength()); }
+    probe.text(fmt(opt.domain[1]));
+    const tickW = probe.node().getComputedTextLength();
+    probe.remove();
+    const labelW = stacked ? 0 : Math.min(maxL, W * 0.42);
+    const axisH = 22, rowH = stacked ? 44 : 30;
+    const x0 = stacked ? tickW / 2 + 4 : labelW + 16 + tickW / 2, x1 = W - tickW / 2 - 6;
+    const H = axisH + rows.length * rowH + 4;
+    svg.attr('viewBox', `0 0 ${W} ${H}`).attr('height', H);
+    const x = d3.scaleLinear(opt.domain, [x0, x1]).clamp(true);
+    const ticks = opt.ticks || x.ticks(4);
+    const g = svg.append('g');
+    g.selectAll('line.grid').data(ticks).join('line').attr('x1', (d) => x(d)).attr('x2', (d) => x(d)).attr('y1', axisH - 4).attr('y2', H)
+      .attr('stroke', 'var(--cds-chart-grid)').attr('stroke-width', 1);
+    g.selectAll('text.tick').data(ticks).join('text').attr('x', (d) => x(d)).attr('y', 12).attr('text-anchor', 'middle')
+      .attr('font-size', 12).attr('fill', 'var(--color-fg-muted)').text((d) => fmt(d));
+    if (opt.ref != null) {
+      g.append('line').attr('x1', x(opt.ref)).attr('x2', x(opt.ref)).attr('y1', axisH - 4).attr('y2', H)
+        .attr('stroke', 'var(--cds-chart-reference)').attr('stroke-width', 1.5).attr('stroke-dasharray', '4 3');
+    }
+    rows.forEach((r, i) => {
+      const top = axisH + i * rowH;
+      const y = stacked ? top + 30 : top + rowH / 2;
+      const rg = g.append('g');
+      if (r.selected) rg.append('rect').attr('x', 0).attr('y', top + 1).attr('width', W).attr('height', rowH - 2).attr('rx', 4).attr('fill', 'var(--cds-chart-grid)');
+      const lab = rg.append('text').attr('font-size', 13).attr('fill', 'var(--color-fg)')
+        .attr('font-weight', r.selected ? 600 : 400).text(r.label);
+      if (stacked) lab.attr('x', x0 - tickW / 2).attr('y', top + 14);
+      else {
+        lab.attr('x', labelW).attr('y', y + 4).attr('text-anchor', 'end');
+        let s = r.label;
+        while (lab.node().getComputedTextLength() > labelW && s.length > 4) { s = s.slice(0, -2); lab.text(`${s.trim()}…`); }
+      }
+      rg.append('line').attr('x1', x0).attr('x2', x1).attr('y1', y).attr('y2', y).attr('stroke', 'var(--cds-chart-grid)').attr('stroke-width', 1);
+      const vals = r.vals.filter((v) => v.value != null && v.n > 0);
+      if (vals.length > 1) {
+        const ex = d3.extent(vals, (v) => v.value);
+        rg.append('line').attr('x1', x(ex[0])).attr('x2', x(ex[1])).attr('y1', y).attr('y2', y)
+          .attr('stroke', 'var(--cds-chart-muted)').attr('stroke-width', 4).attr('stroke-linecap', 'round').attr('opacity', 0.6);
+      }
+      if (r.all != null) rg.append('line').attr('x1', x(r.all)).attr('x2', x(r.all)).attr('y1', y - 8).attr('y2', y + 8)
+        .attr('stroke', 'var(--color-fg-muted)').attr('stroke-width', 2).attr('stroke-linecap', 'round');
+      for (const v of vals) {
+        const small = v.n < MIN_N;
+        rg.append('circle').attr('cx', x(v.value)).attr('cy', y).attr('r', 6)
+          .attr('fill', small ? 'var(--color-panel)' : v.color)
+          .attr('stroke', small ? v.color : 'var(--color-panel)').attr('stroke-width', 2);
+      }
+      const hit = rg.append('rect').attr('class', opt.onClick ? 'ax-row-hit' : '').attr('x', 0).attr('y', top).attr('width', W).attr('height', rowH).attr('fill', 'transparent');
+      hit.on('mousemove', (evt) => showTip(card, evt, r.label,
+        r.vals.map((v) => ({ color: v.color, name: v.name, value: v.value == null || !v.n ? 'not asked' : fmt(v.value), meta: v.n ? `n=${v.n}` : '' })),
+        r.all != null ? `All respondents: ${fmt(r.all)}` : null))
+        .on('mouseleave', () => hideTip(card));
+      if (opt.onClick) hit.on('click', () => opt.onClick(r));
+    });
+  }
+
+  function fail(el) {
+    el.replaceChildren(); el.classList.remove('dash-skeleton');
+    const d = document.createElement('div'); d.className = 'ax-fail'; d.textContent = 'Failed to load'; el.appendChild(d);
+  }
+  function pending(el, st) {
+    if (st === 'error') fail(el);
+    else { el.replaceChildren(); el.classList.add('dash-skeleton'); }
+  }
+
+  // build rows from a calc for the current dimension
+  function rowsFrom(data, dim, rowKeys, pick, label, valueKey) {
+    return rowKeys.map((k) => {
+      const all = data.find((d) => d.dim === 'all' && pick(d, k));
+      return {
+        key: k, label: label(k),
+        all: all ? all[valueKey] : null,
+        vals: SEGS[dim].map((s) => {
+          const d = data.find((x) => x.dim === dim && x.segment === s && pick(x, k));
+          return { seg: s, name: segName(dim, s), color: colorOf(dim, s), value: d ? d[valueKey] : null, n: d ? d.n : 0 };
+        }),
+      };
+    });
+  }
+  const pctFmt = (v) => `${Math.round(v)}%`;
+
+  dash.onData(() => {
+    const p = dash.params();
+    const scope = p.scope === 'g2' ? 'g2' : 'all';
+    const dim = scope === 'g2' && !G2_DIMS.includes(p.dim) ? 'age_cat' : (p.dim || 'age_cat');
+    const q = p.q || 'q7';
+    for (const b of scopesEl.children) b.setAttribute('aria-pressed', String(b.dataset.scope === scope));
+    for (const b of dimsEl.children) {
+      b.setAttribute('aria-pressed', String(b.dataset.dim === dim));
+      b.disabled = scope === 'g2' && !G2_DIMS.includes(b.dataset.dim);
+      b.title = b.disabled ? 'Not available when showing only Group 2' : '';
+    }
+    const D = (id) => { const d = dash.data(id); return d.status === 'ok' ? { ...d, data: d.data.filter((r) => r.scope === scope) } : d; };
+    qsel.value = q;
+
+    // header + legend
+    const seg = D('segments');
+    const total = document.getElementById('total');
+    const legend = document.getElementById('legend');
+    if (seg.status === 'ok') {
+      const all = seg.data.find((d) => d.dim === 'all');
+      total.textContent = all ? d3.format(',')(all.n) : '—';
+      total.dataset.where = `scope=${scope}&dim=all&segment=All%20respondents`;
+      document.getElementById('total-label').textContent = scope === 'g2' ? 'respondents in Group 2.' : 'respondents across 8 survey groups.';
+      total.classList.remove('dash-skeleton');
+      legend.replaceChildren(); legend.classList.remove('dash-skeleton');
+      for (const s of SEGS[dim]) {
+        const d = seg.data.find((x) => x.dim === dim && x.segment === s);
+        const it = document.createElement('span'); it.className = 'it';
+        const i = document.createElement('i'); i.style.background = colorOf(dim, s);
+        const nm = document.createElement('span'); nm.textContent = segName(dim, s);
+        const n = document.createElement('span'); n.className = 'n'; n.textContent = d ? `n=${d.n}` : '';
+        it.append(i, nm, n); legend.appendChild(it);
+      }
+      const note = document.createElement('span'); note.className = 'note';
+      note.textContent = (dim === 'age_gender' ? 'Leaves out respondents with no age or another / unstated gender. ' : '') + (scope === 'g2' ? 'Showing Group 2 only. Hollow dot: fewer than 20 answers. Grey tick: all of Group 2.' : 'Hollow dot: fewer than 20 answers. Grey tick: all respondents.');
+      legend.appendChild(note);
+    } else { total.textContent = '—'; legend.replaceChildren(); if (seg.status === 'error') legend.textContent = 'Failed to load'; }
+
+    // takeaway + gaps list
+    const gaps = D('gaps');
+    const take = document.getElementById('takeaway');
+    const gapsEl = document.getElementById('gaps');
+    if (gaps.status === 'ok') {
+      const mine = gaps.data.filter((r) => r.dim === dim);
+      take.replaceChildren(); take.classList.remove('dash-skeleton');
+      if (mine.length) {
+        const t = mine[0];
+        const w = where({ scope, dim, question: t.question, theme: t.theme });
+        const hi = document.createElement('b'); hi.textContent = `${t.hi_pct}%`; hi.dataset.source = 'gaps'; hi.dataset.field = 'hi_pct'; hi.dataset.where = w;
+        const lo = document.createElement('b'); lo.textContent = `${t.lo_pct}%`; lo.dataset.source = 'gaps'; lo.dataset.field = 'lo_pct'; lo.dataset.where = w;
+        take.append(`Biggest difference by ${DIM_LABELS[dim].toLowerCase()}${scope === 'g2' ? ' within Group 2' : ''}: `, hi, ` of ${segName(dim, t.hi_segment)} vs `, lo,
+          ` of ${segName(dim, t.lo_segment)} mention “${t.theme}” in ${QSHORT[t.question]}.`);
+      }
+      gapsEl.replaceChildren(); gapsEl.classList.remove('dash-skeleton');
+      for (const t of mine.slice(0, 8)) {
+        const li = document.createElement('li');
+        const a = document.createElement('span'); a.className = 't'; a.textContent = t.theme;
+        const qn = document.createElement('span'); qn.className = 'q'; qn.textContent = QUESTIONS[t.question];
+        const mk = (s, v) => {
+          const b = document.createElement('span'); b.className = 'bar';
+          const i = document.createElement('i'); i.style.background = colorOf(dim, s);
+          const tx = document.createElement('span'); tx.textContent = `${segName(dim, s)}: ${v}%`;
+          b.append(i, tx); return b;
+        };
+        li.append(a, qn, mk(t.hi_segment, t.hi_pct), mk(t.lo_segment, t.lo_pct));
+        li.style.cursor = 'pointer';
+        li.addEventListener('click', () => dash.setParams({ q: t.question, theme: t.theme, qseg: null }));
+        gapsEl.appendChild(li);
+      }
+    } else { take.textContent = '—'; pending(gapsEl, gaps.status); }
+
+    // priorities
+    const ranks = D('ranks');
+    for (const scope2 of ['personal', 'societal']) {
+      const el = document.getElementById(scope2 === 'personal' ? 'chart-rank-p' : 'chart-rank-s');
+      if (ranks.status !== 'ok') { pending(el, ranks.status); continue; }
+      dotplot(el, rowsFrom(ranks.data, dim, [1, 2, 3], (d, k) => d.kind === scope2 && d.topic === k, (k) => TOPICS[k], 'first_pct'),
+        { domain: [0, 100], fmt: pctFmt, aria: `Share ranking each topic first (${scope2}) by ${DIM_LABELS[dim]}` });
+    }
+
+    // attitudes
+    const att = D('attitudes');
+    const yesEl = document.getElementById('chart-yes'), ratEl = document.getElementById('chart-rating');
+    if (att.status === 'ok') {
+      const YES = { ethics_yn: 'Ethical safeguards are needed', excited_yn: 'Excited about aging research', bio_yn: 'Bioengineers can help' };
+      const RAT = { excited_r: 'Excitement about aging research', bio_r: 'Role of bioengineers' };
+      dotplot(yesEl, rowsFrom(att.data, dim, Object.keys(YES), (d, k) => d.metric === k, (k) => YES[k], 'value'), { domain: [0, 100], fmt: pctFmt });
+      dotplot(ratEl, rowsFrom(att.data, dim, Object.keys(RAT), (d, k) => d.metric === k, (k) => RAT[k], 'value'),
+        { domain: [1, 5], ticks: [1, 2, 3, 4, 5], fmt: (v) => d3.format('.1f')(v) });
+    } else { pending(yesEl, att.status); pending(ratEl, att.status); }
+
+    // estimate
+    const est = D('estimate'), med = D('median_guess');
+    const binsEl = document.getElementById('chart-bins'), medEl = document.getElementById('chart-median');
+    if (est.status === 'ok') {
+      const BINS = ['15% or less', '16–20%', '21–30%', 'Over 30%', 'Not sure'];
+      dotplot(binsEl, rowsFrom(est.data, dim, BINS, (d, k) => d.bin === k, (k) => (k === '16–20%' ? '16–20% (correct)' : k), 'pct'), { domain: [0, 100], fmt: pctFmt });
+    } else pending(binsEl, est.status);
+    if (med.status === 'ok') {
+      const rows = [{ key: 'median', label: 'Median guess', all: (med.data.find((d) => d.dim === 'all') || {}).median ?? null,
+        vals: SEGS[dim].map((s) => { const d = med.data.find((x) => x.dim === dim && x.segment === s); return { seg: s, name: segName(dim, s), color: colorOf(dim, s), value: d ? d.median : null, n: d ? d.n : 0 }; }) }];
+      dotplot(medEl, rows, { domain: [0, 50], ticks: [0, 10, 18, 30, 40, 50], ref: 18, fmt: (v) => `${d3.format('.3~')(v)}%` });
+    } else pending(medEl, med.status);
+
+    // topics
+    const top = D('topics');
+    const OPTS = ['Reproductive health & longevity', 'Democratizing longevity (access)', 'AI/ML for aging & health', 'All three equally', 'None of them'];
+    for (const which of ['excite', 'concern']) {
+      const el = document.getElementById(`chart-${which}`);
+      if (top.status !== 'ok') { pending(el, top.status); continue; }
+      const keys = which === 'excite' ? OPTS : OPTS.slice(0, 3);
+      dotplot(el, rowsFrom(top.data, dim, keys, (d, k) => d.which === which && d.topic === k, (k) => k, 'pct'), { domain: [0, 100], fmt: pctFmt });
+    }
+
+    // themes
+    const th = D('themes');
+    const thEl = document.getElementById('chart-themes');
+    document.getElementById('themes-title').textContent = QUESTIONS[q];
+    if (th.status === 'ok') {
+      const allRows = th.data.filter((d) => d.dim === 'all' && d.question === q);
+      const keys = allRows.filter((d) => !TAIL.includes(d.theme)).sort((a, b) => b.pct - a.pct).map((d) => d.theme)
+        .concat(TAIL.filter((t) => allRows.some((d) => d.theme === t && d.count > 0)));
+      const theme = p.theme && keys.includes(p.theme) ? p.theme : keys[0];
+      const rows = rowsFrom(th.data, dim, keys, (d, k) => d.question === q && d.theme === k, (k) => k, 'pct');
+      for (const r of rows) r.selected = r.key === theme;
+      dotplot(thEl, rows, { domain: [0, 100], fmt: pctFmt, onClick: (r) => dash.setParams({ theme: r.key, qseg: null }) });
+      drawQuotes(scope, dim, q, theme, p.qseg || null, th.data);
+    } else pending(thEl, th.status);
+  });
+
+  // answers tagged with the selected theme
+  function drawQuotes(scope, dim, q, theme, qseg, themes) {
+    document.getElementById('quotes-title').textContent = `Answers tagged “${theme}”`;
+    const chips = document.getElementById('quote-segs');
+    chips.replaceChildren();
+    const mkChip = (label, value, color) => {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'ax-chip';
+      b.setAttribute('aria-pressed', String((qseg || null) === value));
+      if (color) { const i = document.createElement('i'); i.style.background = color; b.appendChild(i); }
+      b.append(label);
+      b.addEventListener('click', () => dash.setParams({ qseg: value }));
+      chips.appendChild(b);
+    };
+    mkChip('All groups', null, null);
+    for (const s of SEGS[dim]) mkChip(segName(dim, s), s, colorOf(dim, s));
+
+    const cnt = document.getElementById('quotes-count');
+    const cdim = qseg ? dim : 'all', cseg = qseg || 'All respondents';
+    const crow = themes.find((d) => d.dim === cdim && d.segment === cseg && d.question === q && d.theme === theme);
+    cnt.textContent = crow ? d3.format(',')(crow.count) : '—';
+    cnt.dataset.where = where({ scope, dim: cdim, segment: cseg, question: q, theme });
+
+    const segTh = document.getElementById('qcol-seg'), ansTh = document.getElementById('qcol-ans');
+    const segCol = dim === 'g2_vs_rest' ? 'group' : dim === 'age_decade' ? 'age' : dim === 'age_gender' ? 'age_cat' : dim;
+    segTh.dataset.field = segCol; segTh.textContent = dim === 'g2_vs_rest' ? 'Survey group' : dim === 'age_decade' ? 'Age' : dim === 'age_gender' ? 'Age group' : DIM_LABELS[dim];
+    ansTh.dataset.field = `x_${q}`;
+    const tbody = document.querySelector('#quotes tbody');
+    tbody.replaceChildren();
+    const sv = dash.data('survey');
+    if (sv.status !== 'ok') return;
+    const rows = sv.data.filter((r) => r[`t_${q}`] && r[`t_${q}`].split('|').includes(theme) && (scope !== 'g2' || r.group === 'Group 2') && (!qseg || val(r, dim) === qseg) && r[`x_${q}`])
+      .sort((a, b) => b[`x_${q}`].length - a[`x_${q}`].length).slice(0, 30);
+    for (const r of rows) {
+      const tr = document.createElement('tr');
+      for (const v of [r.id, r[segCol] ?? '', r[`x_${q}`]]) { const td = document.createElement('td'); td.textContent = v; tr.appendChild(td); }
+      tbody.appendChild(tr);
+    }
+  }
+
+  const named = document.getElementById(location.hash.slice(1));
+  if (named) setTimeout(() => named.scrollIntoView(), 300);
+})();
+</script>
+<footer class="site-foot">
+  Data: Project 1 aging survey, 732 respondents across 8 class survey groups (October 2026), combined and cleaned in
+  <a href="data/Project_1_combined_dataset.xlsx">the project workbook</a>. Open-ended answers were tagged with keyword codebooks
+  (<a href="scripts/tagger.py">scripts/tagger.py</a>); tags are approximate. Actual US 65+ share: 18.0% in 2024,
+  <a href="https://www.census.gov/newsroom/press-releases/2025/older-adults-outnumber-children.html">US Census Bureau</a>.
+</footer>
+</div>
+</body>
+</html>
