@@ -304,9 +304,10 @@ p.dash-skeleton { display: block; min-height: 1.4em; max-width: 40ch; }
 // country or state (where people live or are from) with at least 10 respondents. Every other calc runs per scope.
 dash.calc('scopes', {
   inputs: ['survey'], title: 'Respondent filters',
-  description: 'The respondent sets the filters offer: everyone, Group 2 only, and each country or state (lived in or from) with 10+ respondents.',
+  description: 'The respondent sets the filters offer: everyone, Group 2 only, and each country or state (lived in or from) with 10+ respondents, plus Greece.',
   fn: (survey) => {
     const MIN = 10;
+    const ALWAYS = ['Greece']; // listed even though fewer than 10 respondents
     const out = [];
     for (const base of ['all', 'g2']) {
       const b = base === 'g2' ? survey.filter((r) => r.group === 'Group 2') : survey;
@@ -315,7 +316,7 @@ dash.calc('scopes', {
         const countries = [...new Set(b.map((r) => r[`${side}_country`]).filter(Boolean))];
         for (const country of countries) {
           const inC = b.filter((r) => r[`${side}_country`] === country);
-          if (inC.length < MIN) continue;
+          if (inC.length < MIN && !ALWAYS.includes(country)) continue;
           out.push({ scope: `${base}|${side}|${country}|`, base, side, country, state: null, n: inC.length });
           const states = [...new Set(inC.map((r) => r[`${side}_state`]).filter(Boolean))];
           for (const state of states) {
@@ -800,7 +801,7 @@ dash.calc('gaps', {
       const note = document.createElement('span'); note.className = 'note';
       note.textContent = (dim === 'age_gender' ? 'Leaves out respondents with no age or another / unstated gender. ' : '')
         + (filterPhrase ? `Showing respondents ${filterPhrase}. Grey tick: all of them. ` : 'Grey tick: all respondents. ')
-        + 'Hollow dot: fewer than 20 answers. Location filters list places with 10+ respondents.';
+        + 'Hollow dot: fewer than 20 answers. Location filters list places with 10+ respondents, plus Greece.';
       legend.appendChild(note);
     } else { total.textContent = '—'; legend.replaceChildren(); if (seg.status === 'error') legend.textContent = 'Failed to load'; }
 

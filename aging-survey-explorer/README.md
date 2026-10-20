@@ -18,7 +18,7 @@ python3 -m http.server 8000   # then open http://localhost:8000
 What it shows, with one dot per group for whichever comparison you pick:
 
 - **Respondents:** all groups, or only Group 2.
-- **Filter by location:** where people live or where they're from, by country and then state or province. Only places with 10+ respondents are listed.
+- **Filter by location:** where people live or where they're from, by country and then state or province. Places with 10+ respondents are listed, plus Greece.
 - **Compare by:** age group (Student age (≤29), Middle-aged (30–64), Elderly (65+)), age by decade, age × gender (6 groups), gender, where they live, where they're from, origin & residence, survey group, Group 2 vs rest.
 - Topic ranked #1 (personal and societal), yes/no attitudes and 1–5 ratings, guesses of the US 65+ share (actual: 18.0% in 2024, [US Census Bureau](https://www.census.gov/newsroom/press-releases/2025/older-adults-outnumber-children.html)), most exciting / concerning topic.
 - Themes in ten open-ended questions, the largest differences between groups, and the answers behind any theme.
