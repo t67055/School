@@ -304,24 +304,25 @@ p.dash-skeleton { display: block; min-height: 1.4em; max-width: 40ch; }
 // country or state (where people live or are from) with at least 10 respondents. Every other calc runs per scope.
 dash.calc('scopes', {
   inputs: ['survey'], title: 'Respondent filters',
-  description: 'The respondent sets the filters offer: everyone, Group 2 only, and each country or state (lived in or from) with 10+ respondents, plus Greece.',
+  description: 'The respondent sets the filters offer: everyone, Group 2 only, and each country or state (lived in or from) with 10+ respondents (any number within Group 2), plus Greece.',
   fn: (survey) => {
     const MIN = 10;
     const ALWAYS = ['Greece']; // listed even though fewer than 10 respondents
     const out = [];
     for (const base of ['all', 'g2']) {
       const b = base === 'g2' ? survey.filter((r) => r.group === 'Group 2') : survey;
+      const min = base === 'g2' ? 1 : MIN; // no minimum within Group 2
       out.push({ scope: base, base, side: null, country: null, state: null, n: b.length });
       for (const side of ['res', 'from']) {
         const countries = [...new Set(b.map((r) => r[`${side}_country`]).filter(Boolean))];
         for (const country of countries) {
           const inC = b.filter((r) => r[`${side}_country`] === country);
-          if (inC.length < MIN && !ALWAYS.includes(country)) continue;
+          if (inC.length < min && !ALWAYS.includes(country)) continue;
           out.push({ scope: `${base}|${side}|${country}|`, base, side, country, state: null, n: inC.length });
           const states = [...new Set(inC.map((r) => r[`${side}_state`]).filter(Boolean))];
           for (const state of states) {
             const n = inC.filter((r) => r[`${side}_state`] === state).length;
-            if (n >= MIN) out.push({ scope: `${base}|${side}|${country}|${state}`, base, side, country, state, n });
+            if (n >= min) out.push({ scope: `${base}|${side}|${country}|${state}`, base, side, country, state, n });
           }
         }
       }
@@ -762,7 +763,7 @@ dash.calc('gaps', {
       countryEl.value = country || '';
     }
     if (stateEl !== document.activeElement) {
-      stateEl.replaceChildren(new Option(country ? (stateRows.length ? 'Any state / province' : 'No state with 10+ respondents') : 'Pick a country first', ''),
+      stateEl.replaceChildren(new Option(country ? (stateRows.length ? 'Any state / province' : (base === 'g2' ? 'No states given' : 'No state with 10+ respondents')) : 'Pick a country first', ''),
         ...stateRows.map((r) => new Option(`${r.state} (${r.n})`, r.state)));
       stateEl.value = state || '';
       stateEl.disabled = !country || !stateRows.length;
@@ -801,7 +802,7 @@ dash.calc('gaps', {
       const note = document.createElement('span'); note.className = 'note';
       note.textContent = (dim === 'age_gender' ? 'Leaves out respondents with no age or another / unstated gender. ' : '')
         + (filterPhrase ? `Showing respondents ${filterPhrase}. Grey tick: all of them. ` : 'Grey tick: all respondents. ')
-        + 'Hollow dot: fewer than 20 answers. Location filters list places with 10+ respondents, plus Greece.';
+        + 'Hollow dot: fewer than 20 answers. Location filters list places with 10+ respondents (every place within Group 2), plus Greece.';
       legend.appendChild(note);
     } else { total.textContent = '—'; legend.replaceChildren(); if (seg.status === 'error') legend.textContent = 'Failed to load'; }
 
