@@ -70,7 +70,7 @@ p.dash-skeleton { display: block; min-height: 1.4em; max-width: 40ch; }
   const calcs = new Map();
   const cache = new Map();
   const listeners = [];
-  let params = { dim: 'age_cat', q: 'q7', theme: null, qseg: null, scope: 'all' };
+  let params = { dim: 'age_cat', q: 'q7', theme: null, qseg: null, scope: 'all', side: 'res', country: null, state: null };
   const defaults = { ...params };
   const css = (name) => `var(${name})`;
   const notify = () => { for (const fn of listeners) { try { fn(); } catch (e) { console.error(e); } } };
@@ -130,6 +130,9 @@ p.dash-skeleton { display: block; min-height: 1.4em; max-width: 40ch; }
 .ax-seg button:disabled { opacity: .4; cursor: not-allowed; }
 .ax-seg button[aria-pressed="true"] { background: var(--color-fg); color: var(--color-bg); border-color: var(--color-fg); }
 .ax-seg button:focus-visible, .ax-chip:focus-visible, .ax-select:focus-visible { outline: 2px solid var(--color-fg); outline-offset: 2px; }
+.ax-loc { display: flex; flex-wrap: wrap; gap: var(--cds-gap-xs) var(--cds-gap-sm); align-items: center; }
+.ax-select.ax-select-sm { flex: 0 1 15rem; font-size: var(--cds-font-size-caption); }
+.ax-clear { font: inherit; font-size: var(--cds-font-size-caption); background: none; border: 0; padding: var(--cds-pad-xs); color: var(--color-fg-muted); text-decoration: underline; cursor: pointer; }
 .ax-legend { display: flex; flex-wrap: wrap; gap: var(--cds-gap-xs) var(--cds-gap-md); align-items: center; min-height: 1.5rem; font-size: var(--cds-font-size-caption); }
 .ax-legend span.it { display: inline-flex; align-items: center; gap: 6px; }
 .ax-legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
@@ -187,6 +190,13 @@ p.dash-skeleton { display: block; min-height: 1.4em; max-width: 40ch; }
   <div class="ax-controls" id="controls">
     <span class="ax-label" id="scope-label">Respondents</span>
     <div class="ax-seg" id="scopes" role="group" aria-labelledby="scope-label"></div>
+    <span class="ax-label" id="loc-label">Filter by location</span>
+    <div class="ax-loc" id="loc" data-source="scopes">
+      <div class="ax-seg" id="loc-side" role="group" aria-label="Where they live or where they are from"></div>
+      <select class="ax-select ax-select-sm" id="loc-country" aria-label="Country"></select>
+      <select class="ax-select ax-select-sm" id="loc-state" aria-label="State or province"></select>
+      <button type="button" class="ax-clear" id="loc-clear" hidden>Clear location</button>
+    </div>
     <span class="ax-label" id="compare-label">Compare by</span>
     <div class="ax-seg" id="dims" role="group" aria-labelledby="compare-label"></div>
     <div class="ax-legend dash-skeleton" id="legend" data-source="segments">—</div>
@@ -197,7 +207,7 @@ p.dash-skeleton { display: block; min-height: 1.4em; max-width: 40ch; }
     <div class="ax-grid">
       <div class="ax-card" id="card-rank-p">
         <h3>Ranked #1 for you personally</h3>
-        <p class="ax-note">Share who put each topic first. The grey tick marks all respondents.</p>
+        <p class="ax-note">Share who put each topic first. The grey tick marks everyone shown.</p>
         <div class="ax-chart dash-skeleton" id="chart-rank-p" data-source="ranks"></div>
       </div>
       <div class="ax-card" id="card-rank-s">
@@ -270,7 +280,7 @@ p.dash-skeleton { display: block; min-height: 1.4em; max-width: 40ch; }
       </div>
       <div class="ax-card" id="card-gaps">
         <h3>Biggest differences</h3>
-        <p class="ax-note">Themes, across all open questions, where groups differ most (groups with at least 20 answers, or 10 when showing only Group 2).</p>
+        <p class="ax-note">Themes, across all open questions, where groups differ most (groups with at least 20 answers, or 10 when a filter is on).</p>
         <ul class="ax-gaps dash-skeleton" id="gaps" data-source="gaps"></ul>
       </div>
     </div>
@@ -290,50 +300,82 @@ p.dash-skeleton { display: block; min-height: 1.4em; max-width: 40ch; }
 
 <script>
 // ---------- calculations (each reads the survey rows; shares are whole percents) ----------
-// Every calc runs twice: scope "all" (every respondent) and scope "g2" (Group 2 only, split by demographics).
-dash.calc('segments', {
-  inputs: ['survey'], title: 'Respondents per group',
-  description: 'Number of respondents in each demographic group, for all respondents and for Group 2 only.',
+// "scopes" lists every respondent set the page can show: all respondents, Group 2 only, and each
+// country or state (where people live or are from) with at least 10 respondents. Every other calc runs per scope.
+dash.calc('scopes', {
+  inputs: ['survey'], title: 'Respondent filters',
+  description: 'The respondent sets the filters offer: everyone, Group 2 only, and each country or state (lived in or from) with 10+ respondents.',
   fn: (survey) => {
-    const DIMS = { all: ['All respondents'], age_cat: ['Student', 'Middle-aged', 'Elderly (65+)'], age_decade: ['Under 20', '20s', '30s', '40s', '50s', '60s', '70+'], age_gender: ['Student · Female', 'Student · Male', 'Middle-aged · Female', 'Middle-aged · Male', 'Elderly (65+) · Female', 'Elderly (65+) · Male'], gender: ['Female', 'Male', 'Another / not stated'], res_region: ['United States', 'China', 'Other countries'], from_region: ['United States', 'China', 'Other countries'], mobility: ['From US, lives in US', 'From abroad, lives in US', 'Lives outside US'], group: ['Group 1', 'Group 2', 'Group 3', 'Group 4', 'Group 5', 'Group 6', 'Group 7', 'Group 8'], g2_vs_rest: ['Group 2', 'Other groups'] };
-    const G2_DIMS = ['all', 'age_cat', 'age_decade', 'age_gender', 'gender', 'res_region', 'from_region', 'mobility'];
-    const decade = (a) => (a == null ? null : a < 20 ? 'Under 20' : a >= 70 ? '70+' : `${Math.floor(a / 10) * 10}s`);
-    const ageGender = (r) => (r.age_cat && (r.gender === 'Female' || r.gender === 'Male') ? `${r.age_cat} · ${r.gender}` : null);
-    const val = (r, dim) => (dim === 'g2_vs_rest' ? (r.group === 'Group 2' ? 'Group 2' : 'Other groups') : dim === 'age_decade' ? decade(r.age) : dim === 'age_gender' ? ageGender(r) : r[dim]);
+    const MIN = 10;
     const out = [];
-    for (const scope of ['all', 'g2']) {
-      const base = scope === 'g2' ? survey.filter((r) => r.group === 'Group 2') : survey;
-      for (const [dim, segs] of Object.entries(DIMS)) {
-        if (scope === 'g2' && !G2_DIMS.includes(dim)) continue;
-        for (const segment of segs) out.push({ scope, dim, segment, n: base.filter((r) => dim === 'all' || val(r, dim) === segment).length });
+    for (const base of ['all', 'g2']) {
+      const b = base === 'g2' ? survey.filter((r) => r.group === 'Group 2') : survey;
+      out.push({ scope: base, base, side: null, country: null, state: null, n: b.length });
+      for (const side of ['res', 'from']) {
+        const countries = [...new Set(b.map((r) => r[`${side}_country`]).filter(Boolean))];
+        for (const country of countries) {
+          const inC = b.filter((r) => r[`${side}_country`] === country);
+          if (inC.length < MIN) continue;
+          out.push({ scope: `${base}|${side}|${country}|`, base, side, country, state: null, n: inC.length });
+          const states = [...new Set(inC.map((r) => r[`${side}_state`]).filter(Boolean))];
+          for (const state of states) {
+            const n = inC.filter((r) => r[`${side}_state`] === state).length;
+            if (n >= MIN) out.push({ scope: `${base}|${side}|${country}|${state}`, base, side, country, state, n });
+          }
+        }
       }
     }
     return out;
   },
 });
 
-dash.calc('ranks', {
-  inputs: ['survey'], title: 'Topic ranked first, by group',
-  description: 'Percent of respondents in each group who ranked each topic #1 (personal and societal), and the mean rank.',
-  fn: (survey) => {
-    const DIMS = { all: ['All respondents'], age_cat: ['Student', 'Middle-aged', 'Elderly (65+)'], age_decade: ['Under 20', '20s', '30s', '40s', '50s', '60s', '70+'], age_gender: ['Student · Female', 'Student · Male', 'Middle-aged · Female', 'Middle-aged · Male', 'Elderly (65+) · Female', 'Elderly (65+) · Male'], gender: ['Female', 'Male', 'Another / not stated'], res_region: ['United States', 'China', 'Other countries'], from_region: ['United States', 'China', 'Other countries'], mobility: ['From US, lives in US', 'From abroad, lives in US', 'Lives outside US'], group: ['Group 1', 'Group 2', 'Group 3', 'Group 4', 'Group 5', 'Group 6', 'Group 7', 'Group 8'], g2_vs_rest: ['Group 2', 'Other groups'] };
-    const G2_DIMS = ['all', 'age_cat', 'age_decade', 'age_gender', 'gender', 'res_region', 'from_region', 'mobility'];
-    const decade = (a) => (a == null ? null : a < 20 ? 'Under 20' : a >= 70 ? '70+' : `${Math.floor(a / 10) * 10}s`);
-    const ageGender = (r) => (r.age_cat && (r.gender === 'Female' || r.gender === 'Male') ? `${r.age_cat} · ${r.gender}` : null);
-    const val = (r, dim) => (dim === 'g2_vs_rest' ? (r.group === 'Group 2' ? 'Group 2' : 'Other groups') : dim === 'age_decade' ? decade(r.age) : dim === 'age_gender' ? ageGender(r) : r[dim]);
+dash.calc('segments', {
+  inputs: ['survey', 'scopes'], title: 'Respondents per group',
+  description: 'Number of respondents in each demographic group, for each respondent filter.',
+  fn: (survey, scopes) => {
+    const DIMS = { all: ['All respondents'], age_cat: ['Student age (≤29)', 'Middle-aged (30–64)', 'Elderly (65+)'], age_decade: ['Under 20', '20s (20–29)', '30s (30–39)', '40s (40–49)', '50s (50–59)', '60s (60–69)', '70+'], age_gender: ['Student age (≤29) · Female', 'Student age (≤29) · Male', 'Middle-aged (30–64) · Female', 'Middle-aged (30–64) · Male', 'Elderly (65+) · Female', 'Elderly (65+) · Male'], gender: ['Female', 'Male', 'Another / not stated'], res_region: ['United States', 'China', 'Other countries'], from_region: ['United States', 'China', 'Other countries'], mobility: ['From US, lives in US', 'From abroad, lives in US', 'Lives outside US'], group: ['Group 1', 'Group 2', 'Group 3', 'Group 4', 'Group 5', 'Group 6', 'Group 7', 'Group 8'], g2_vs_rest: ['Group 2', 'Other groups'] };
+    const decade = (a) => (a == null ? null : a < 20 ? 'Under 20' : a >= 70 ? '70+' : `${Math.floor(a / 10) * 10}s (${Math.floor(a / 10) * 10}–${Math.floor(a / 10) * 10 + 9})`);
+    const val = (r, dim) => (dim === 'g2_vs_rest' ? (r.group === 'Group 2' ? 'Group 2' : 'Other groups')
+      : dim === 'age_decade' ? decade(r.age)
+      : dim === 'age_gender' ? (r.age_cat && (r.gender === 'Female' || r.gender === 'Male') ? `${r.age_cat} · ${r.gender}` : null)
+      : r[dim]);
+    const inScope = (r, sc) => (sc.base !== 'g2' || r.group === 'Group 2')
+      && (!sc.side || (r[`${sc.side}_country`] === sc.country && (!sc.state || r[`${sc.side}_state`] === sc.state)));
+    const dimsFor = (sc) => Object.entries(DIMS).filter(([d]) => sc.base !== 'g2' || !['group', 'g2_vs_rest'].includes(d));
     const out = [];
-    for (const scope of ['all', 'g2']) {
-      const base = scope === 'g2' ? survey.filter((r) => r.group === 'Group 2') : survey;
-      for (const [dim, segs] of Object.entries(DIMS)) {
-        if (scope === 'g2' && !G2_DIMS.includes(dim)) continue;
-        for (const segment of segs) {
-          const rs = base.filter((r) => dim === 'all' || val(r, dim) === segment);
-          for (const kind of ['personal', 'societal']) for (const topic of [1, 2, 3]) {
-            const v = rs.map((r) => r[`rank_${kind[0]}${topic}`]).filter((x) => x != null);
-            const firsts = v.filter((x) => x === 1).length;
-            out.push({ scope, dim, segment, kind, topic, first_pct: v.length ? Math.round(100 * firsts / v.length) : null,
-              mean_rank: v.length ? Math.round(100 * v.reduce((a, b) => a + b, 0) / v.length) / 100 : null, n: v.length });
-          }
+    for (const sc of scopes) {
+      const base = survey.filter((r) => inScope(r, sc));
+      for (const [dim, segs] of dimsFor(sc)) for (const segment of segs)
+        out.push({ scope: sc.scope, dim, segment, n: base.filter((r) => dim === 'all' || val(r, dim) === segment).length });
+    }
+    return out;
+  },
+});
+
+dash.calc('ranks', {
+  inputs: ['survey', 'scopes'], title: 'Topic ranked first, by group',
+  description: 'Percent of respondents in each group who ranked each topic #1 (personal and societal), and the mean rank.',
+  fn: (survey, scopes) => {
+    const DIMS = { all: ['All respondents'], age_cat: ['Student age (≤29)', 'Middle-aged (30–64)', 'Elderly (65+)'], age_decade: ['Under 20', '20s (20–29)', '30s (30–39)', '40s (40–49)', '50s (50–59)', '60s (60–69)', '70+'], age_gender: ['Student age (≤29) · Female', 'Student age (≤29) · Male', 'Middle-aged (30–64) · Female', 'Middle-aged (30–64) · Male', 'Elderly (65+) · Female', 'Elderly (65+) · Male'], gender: ['Female', 'Male', 'Another / not stated'], res_region: ['United States', 'China', 'Other countries'], from_region: ['United States', 'China', 'Other countries'], mobility: ['From US, lives in US', 'From abroad, lives in US', 'Lives outside US'], group: ['Group 1', 'Group 2', 'Group 3', 'Group 4', 'Group 5', 'Group 6', 'Group 7', 'Group 8'], g2_vs_rest: ['Group 2', 'Other groups'] };
+    const decade = (a) => (a == null ? null : a < 20 ? 'Under 20' : a >= 70 ? '70+' : `${Math.floor(a / 10) * 10}s (${Math.floor(a / 10) * 10}–${Math.floor(a / 10) * 10 + 9})`);
+    const val = (r, dim) => (dim === 'g2_vs_rest' ? (r.group === 'Group 2' ? 'Group 2' : 'Other groups')
+      : dim === 'age_decade' ? decade(r.age)
+      : dim === 'age_gender' ? (r.age_cat && (r.gender === 'Female' || r.gender === 'Male') ? `${r.age_cat} · ${r.gender}` : null)
+      : r[dim]);
+    const inScope = (r, sc) => (sc.base !== 'g2' || r.group === 'Group 2')
+      && (!sc.side || (r[`${sc.side}_country`] === sc.country && (!sc.state || r[`${sc.side}_state`] === sc.state)));
+    const dimsFor = (sc) => Object.entries(DIMS).filter(([d]) => sc.base !== 'g2' || !['group', 'g2_vs_rest'].includes(d));
+    const out = [];
+    for (const sc of scopes) {
+      const base = survey.filter((r) => inScope(r, sc));
+      for (const [dim, segs] of dimsFor(sc)) for (const segment of segs) {
+        const rs = base.filter((r) => dim === 'all' || val(r, dim) === segment);
+        if (!rs.length && dim !== 'all') continue;
+        for (const kind of ['personal', 'societal']) for (const topic of [1, 2, 3]) {
+          const v = rs.map((r) => r[`rank_${kind[0]}${topic}`]).filter((x) => x != null);
+          const firsts = v.filter((x) => x === 1).length;
+          out.push({ scope: sc.scope, dim, segment, kind, topic, first_pct: v.length ? Math.round(100 * firsts / v.length) : null,
+            mean_rank: v.length ? Math.round(100 * v.reduce((a, b) => a + b, 0) / v.length) / 100 : null, n: v.length });
         }
       }
     }
@@ -342,29 +384,31 @@ dash.calc('ranks', {
 });
 
 dash.calc('attitudes', {
-  inputs: ['survey'], title: 'Yes shares and ratings, by group',
+  inputs: ['survey', 'scopes'], title: 'Yes shares and ratings, by group',
   description: 'Percent answering yes (ethics, excitement, bioengineers) and mean 1–5 ratings, per group.',
-  fn: (survey) => {
-    const DIMS = { all: ['All respondents'], age_cat: ['Student', 'Middle-aged', 'Elderly (65+)'], age_decade: ['Under 20', '20s', '30s', '40s', '50s', '60s', '70+'], age_gender: ['Student · Female', 'Student · Male', 'Middle-aged · Female', 'Middle-aged · Male', 'Elderly (65+) · Female', 'Elderly (65+) · Male'], gender: ['Female', 'Male', 'Another / not stated'], res_region: ['United States', 'China', 'Other countries'], from_region: ['United States', 'China', 'Other countries'], mobility: ['From US, lives in US', 'From abroad, lives in US', 'Lives outside US'], group: ['Group 1', 'Group 2', 'Group 3', 'Group 4', 'Group 5', 'Group 6', 'Group 7', 'Group 8'], g2_vs_rest: ['Group 2', 'Other groups'] };
-    const G2_DIMS = ['all', 'age_cat', 'age_decade', 'age_gender', 'gender', 'res_region', 'from_region', 'mobility'];
-    const decade = (a) => (a == null ? null : a < 20 ? 'Under 20' : a >= 70 ? '70+' : `${Math.floor(a / 10) * 10}s`);
-    const ageGender = (r) => (r.age_cat && (r.gender === 'Female' || r.gender === 'Male') ? `${r.age_cat} · ${r.gender}` : null);
-    const val = (r, dim) => (dim === 'g2_vs_rest' ? (r.group === 'Group 2' ? 'Group 2' : 'Other groups') : dim === 'age_decade' ? decade(r.age) : dim === 'age_gender' ? ageGender(r) : r[dim]);
+  fn: (survey, scopes) => {
+    const DIMS = { all: ['All respondents'], age_cat: ['Student age (≤29)', 'Middle-aged (30–64)', 'Elderly (65+)'], age_decade: ['Under 20', '20s (20–29)', '30s (30–39)', '40s (40–49)', '50s (50–59)', '60s (60–69)', '70+'], age_gender: ['Student age (≤29) · Female', 'Student age (≤29) · Male', 'Middle-aged (30–64) · Female', 'Middle-aged (30–64) · Male', 'Elderly (65+) · Female', 'Elderly (65+) · Male'], gender: ['Female', 'Male', 'Another / not stated'], res_region: ['United States', 'China', 'Other countries'], from_region: ['United States', 'China', 'Other countries'], mobility: ['From US, lives in US', 'From abroad, lives in US', 'Lives outside US'], group: ['Group 1', 'Group 2', 'Group 3', 'Group 4', 'Group 5', 'Group 6', 'Group 7', 'Group 8'], g2_vs_rest: ['Group 2', 'Other groups'] };
+    const decade = (a) => (a == null ? null : a < 20 ? 'Under 20' : a >= 70 ? '70+' : `${Math.floor(a / 10) * 10}s (${Math.floor(a / 10) * 10}–${Math.floor(a / 10) * 10 + 9})`);
+    const val = (r, dim) => (dim === 'g2_vs_rest' ? (r.group === 'Group 2' ? 'Group 2' : 'Other groups')
+      : dim === 'age_decade' ? decade(r.age)
+      : dim === 'age_gender' ? (r.age_cat && (r.gender === 'Female' || r.gender === 'Male') ? `${r.age_cat} · ${r.gender}` : null)
+      : r[dim]);
+    const inScope = (r, sc) => (sc.base !== 'g2' || r.group === 'Group 2')
+      && (!sc.side || (r[`${sc.side}_country`] === sc.country && (!sc.state || r[`${sc.side}_state`] === sc.state)));
+    const dimsFor = (sc) => Object.entries(DIMS).filter(([d]) => sc.base !== 'g2' || !['group', 'g2_vs_rest'].includes(d));
     const METRICS = [['ethics_yn', 'yes'], ['excited_yn', 'yes'], ['bio_yn', 'yes'], ['excited_r', 'mean'], ['bio_r', 'mean']];
     const out = [];
-    for (const scope of ['all', 'g2']) {
-      const base = scope === 'g2' ? survey.filter((r) => r.group === 'Group 2') : survey;
-      for (const [dim, segs] of Object.entries(DIMS)) {
-        if (scope === 'g2' && !G2_DIMS.includes(dim)) continue;
-        for (const segment of segs) {
-          const rs = base.filter((r) => dim === 'all' || val(r, dim) === segment);
-          for (const [metric, kind] of METRICS) {
-            const v = rs.map((r) => r[metric]).filter((x) => x != null);
-            const value = !v.length ? null : kind === 'yes'
-              ? Math.round(100 * v.filter((x) => x === 'Yes').length / v.length)
-              : Math.round(100 * v.reduce((a, b) => a + b, 0) / v.length) / 100;
-            out.push({ scope, dim, segment, metric, value, n: v.length });
-          }
+    for (const sc of scopes) {
+      const base = survey.filter((r) => inScope(r, sc));
+      for (const [dim, segs] of dimsFor(sc)) for (const segment of segs) {
+        const rs = base.filter((r) => dim === 'all' || val(r, dim) === segment);
+        if (!rs.length && dim !== 'all') continue;
+        for (const [metric, kind] of METRICS) {
+          const v = rs.map((r) => r[metric]).filter((x) => x != null);
+          const value = !v.length ? null : kind === 'yes'
+            ? Math.round(100 * v.filter((x) => x === 'Yes').length / v.length)
+            : Math.round(100 * v.reduce((a, b) => a + b, 0) / v.length) / 100;
+          out.push({ scope: sc.scope, dim, segment, metric, value, n: v.length });
         }
       }
     }
@@ -373,25 +417,28 @@ dash.calc('attitudes', {
 });
 
 dash.calc('estimate', {
-  inputs: ['survey'], title: 'Guess of 65+ share, by band',
+  inputs: ['survey', 'scopes'], title: 'Guess of 65+ share, by band',
   description: 'Percent of each group whose guess of the US 65+ share falls in each band.',
-  fn: (survey) => {
-    const DIMS = { all: ['All respondents'], age_cat: ['Student', 'Middle-aged', 'Elderly (65+)'], age_decade: ['Under 20', '20s', '30s', '40s', '50s', '60s', '70+'], age_gender: ['Student · Female', 'Student · Male', 'Middle-aged · Female', 'Middle-aged · Male', 'Elderly (65+) · Female', 'Elderly (65+) · Male'], gender: ['Female', 'Male', 'Another / not stated'], res_region: ['United States', 'China', 'Other countries'], from_region: ['United States', 'China', 'Other countries'], mobility: ['From US, lives in US', 'From abroad, lives in US', 'Lives outside US'], group: ['Group 1', 'Group 2', 'Group 3', 'Group 4', 'Group 5', 'Group 6', 'Group 7', 'Group 8'], g2_vs_rest: ['Group 2', 'Other groups'] };
-    const G2_DIMS = ['all', 'age_cat', 'age_decade', 'age_gender', 'gender', 'res_region', 'from_region', 'mobility'];
-    const decade = (a) => (a == null ? null : a < 20 ? 'Under 20' : a >= 70 ? '70+' : `${Math.floor(a / 10) * 10}s`);
-    const ageGender = (r) => (r.age_cat && (r.gender === 'Female' || r.gender === 'Male') ? `${r.age_cat} · ${r.gender}` : null);
-    const val = (r, dim) => (dim === 'g2_vs_rest' ? (r.group === 'Group 2' ? 'Group 2' : 'Other groups') : dim === 'age_decade' ? decade(r.age) : dim === 'age_gender' ? ageGender(r) : r[dim]);
+  fn: (survey, scopes) => {
+    const DIMS = { all: ['All respondents'], age_cat: ['Student age (≤29)', 'Middle-aged (30–64)', 'Elderly (65+)'], age_decade: ['Under 20', '20s (20–29)', '30s (30–39)', '40s (40–49)', '50s (50–59)', '60s (60–69)', '70+'], age_gender: ['Student age (≤29) · Female', 'Student age (≤29) · Male', 'Middle-aged (30–64) · Female', 'Middle-aged (30–64) · Male', 'Elderly (65+) · Female', 'Elderly (65+) · Male'], gender: ['Female', 'Male', 'Another / not stated'], res_region: ['United States', 'China', 'Other countries'], from_region: ['United States', 'China', 'Other countries'], mobility: ['From US, lives in US', 'From abroad, lives in US', 'Lives outside US'], group: ['Group 1', 'Group 2', 'Group 3', 'Group 4', 'Group 5', 'Group 6', 'Group 7', 'Group 8'], g2_vs_rest: ['Group 2', 'Other groups'] };
+    const decade = (a) => (a == null ? null : a < 20 ? 'Under 20' : a >= 70 ? '70+' : `${Math.floor(a / 10) * 10}s (${Math.floor(a / 10) * 10}–${Math.floor(a / 10) * 10 + 9})`);
+    const val = (r, dim) => (dim === 'g2_vs_rest' ? (r.group === 'Group 2' ? 'Group 2' : 'Other groups')
+      : dim === 'age_decade' ? decade(r.age)
+      : dim === 'age_gender' ? (r.age_cat && (r.gender === 'Female' || r.gender === 'Male') ? `${r.age_cat} · ${r.gender}` : null)
+      : r[dim]);
+    const inScope = (r, sc) => (sc.base !== 'g2' || r.group === 'Group 2')
+      && (!sc.side || (r[`${sc.side}_country`] === sc.country && (!sc.state || r[`${sc.side}_state`] === sc.state)));
+    const dimsFor = (sc) => Object.entries(DIMS).filter(([d]) => sc.base !== 'g2' || !['group', 'g2_vs_rest'].includes(d));
     const BINS = ['15% or less', '16–20%', '21–30%', 'Over 30%', 'Not sure'];
     const out = [];
-    for (const scope of ['all', 'g2']) {
-      const base = scope === 'g2' ? survey.filter((r) => r.group === 'Group 2') : survey;
-      for (const [dim, segs] of Object.entries(DIMS)) {
-        if (scope === 'g2' && !G2_DIMS.includes(dim)) continue;
-        for (const segment of segs) {
-          const v = base.filter((r) => (dim === 'all' || val(r, dim) === segment) && r.pct_bin != null);
-          for (const bin of BINS)
-            out.push({ scope, dim, segment, bin, pct: v.length ? Math.round(100 * v.filter((r) => r.pct_bin === bin).length / v.length) : null, n: v.length });
-        }
+    for (const sc of scopes) {
+      const base = survey.filter((r) => inScope(r, sc));
+      for (const [dim, segs] of dimsFor(sc)) for (const segment of segs) {
+        const rs = base.filter((r) => dim === 'all' || val(r, dim) === segment);
+        if (!rs.length && dim !== 'all') continue;
+        const v = rs.filter((r) => r.pct_bin != null);
+        for (const bin of BINS)
+          out.push({ scope: sc.scope, dim, segment, bin, pct: v.length ? Math.round(100 * v.filter((r) => r.pct_bin === bin).length / v.length) : null, n: v.length });
       }
     }
     return out;
@@ -399,24 +446,27 @@ dash.calc('estimate', {
 });
 
 dash.calc('median_guess', {
-  inputs: ['survey'], title: 'Median guess of 65+ share',
+  inputs: ['survey', 'scopes'], title: 'Median guess of 65+ share',
   description: 'Median of the numeric guesses of the US 65+ share, per group.',
-  fn: (survey) => {
-    const DIMS = { all: ['All respondents'], age_cat: ['Student', 'Middle-aged', 'Elderly (65+)'], age_decade: ['Under 20', '20s', '30s', '40s', '50s', '60s', '70+'], age_gender: ['Student · Female', 'Student · Male', 'Middle-aged · Female', 'Middle-aged · Male', 'Elderly (65+) · Female', 'Elderly (65+) · Male'], gender: ['Female', 'Male', 'Another / not stated'], res_region: ['United States', 'China', 'Other countries'], from_region: ['United States', 'China', 'Other countries'], mobility: ['From US, lives in US', 'From abroad, lives in US', 'Lives outside US'], group: ['Group 1', 'Group 2', 'Group 3', 'Group 4', 'Group 5', 'Group 6', 'Group 7', 'Group 8'], g2_vs_rest: ['Group 2', 'Other groups'] };
-    const G2_DIMS = ['all', 'age_cat', 'age_decade', 'age_gender', 'gender', 'res_region', 'from_region', 'mobility'];
-    const decade = (a) => (a == null ? null : a < 20 ? 'Under 20' : a >= 70 ? '70+' : `${Math.floor(a / 10) * 10}s`);
-    const ageGender = (r) => (r.age_cat && (r.gender === 'Female' || r.gender === 'Male') ? `${r.age_cat} · ${r.gender}` : null);
-    const val = (r, dim) => (dim === 'g2_vs_rest' ? (r.group === 'Group 2' ? 'Group 2' : 'Other groups') : dim === 'age_decade' ? decade(r.age) : dim === 'age_gender' ? ageGender(r) : r[dim]);
+  fn: (survey, scopes) => {
+    const DIMS = { all: ['All respondents'], age_cat: ['Student age (≤29)', 'Middle-aged (30–64)', 'Elderly (65+)'], age_decade: ['Under 20', '20s (20–29)', '30s (30–39)', '40s (40–49)', '50s (50–59)', '60s (60–69)', '70+'], age_gender: ['Student age (≤29) · Female', 'Student age (≤29) · Male', 'Middle-aged (30–64) · Female', 'Middle-aged (30–64) · Male', 'Elderly (65+) · Female', 'Elderly (65+) · Male'], gender: ['Female', 'Male', 'Another / not stated'], res_region: ['United States', 'China', 'Other countries'], from_region: ['United States', 'China', 'Other countries'], mobility: ['From US, lives in US', 'From abroad, lives in US', 'Lives outside US'], group: ['Group 1', 'Group 2', 'Group 3', 'Group 4', 'Group 5', 'Group 6', 'Group 7', 'Group 8'], g2_vs_rest: ['Group 2', 'Other groups'] };
+    const decade = (a) => (a == null ? null : a < 20 ? 'Under 20' : a >= 70 ? '70+' : `${Math.floor(a / 10) * 10}s (${Math.floor(a / 10) * 10}–${Math.floor(a / 10) * 10 + 9})`);
+    const val = (r, dim) => (dim === 'g2_vs_rest' ? (r.group === 'Group 2' ? 'Group 2' : 'Other groups')
+      : dim === 'age_decade' ? decade(r.age)
+      : dim === 'age_gender' ? (r.age_cat && (r.gender === 'Female' || r.gender === 'Male') ? `${r.age_cat} · ${r.gender}` : null)
+      : r[dim]);
+    const inScope = (r, sc) => (sc.base !== 'g2' || r.group === 'Group 2')
+      && (!sc.side || (r[`${sc.side}_country`] === sc.country && (!sc.state || r[`${sc.side}_state`] === sc.state)));
+    const dimsFor = (sc) => Object.entries(DIMS).filter(([d]) => sc.base !== 'g2' || !['group', 'g2_vs_rest'].includes(d));
     const out = [];
-    for (const scope of ['all', 'g2']) {
-      const base = scope === 'g2' ? survey.filter((r) => r.group === 'Group 2') : survey;
-      for (const [dim, segs] of Object.entries(DIMS)) {
-        if (scope === 'g2' && !G2_DIMS.includes(dim)) continue;
-        for (const segment of segs) {
-          const v = base.filter((r) => (dim === 'all' || val(r, dim) === segment) && r.pct_est != null).map((r) => r.pct_est).sort((a, b) => a - b);
-          const m = v.length ? (v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2) : null;
-          out.push({ scope, dim, segment, median: m, n: v.length });
-        }
+    for (const sc of scopes) {
+      const base = survey.filter((r) => inScope(r, sc));
+      for (const [dim, segs] of dimsFor(sc)) for (const segment of segs) {
+        const rs = base.filter((r) => dim === 'all' || val(r, dim) === segment);
+        if (!rs.length && dim !== 'all') continue;
+        const v = rs.filter((r) => r.pct_est != null).map((r) => r.pct_est).sort((a, b) => a - b);
+        const m = v.length ? (v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2) : null;
+        out.push({ scope: sc.scope, dim, segment, median: m, n: v.length });
       }
     }
     return out;
@@ -424,24 +474,29 @@ dash.calc('median_guess', {
 });
 
 dash.calc('topics', {
-  inputs: ['survey'], title: 'Most exciting / concerning topic',
+  inputs: ['survey', 'scopes'], title: 'Most exciting / concerning topic',
   description: 'Percent of each group picking each topic as most exciting or most concerning.',
-  fn: (survey) => {
-    const DIMS = { all: ['All respondents'], age_cat: ['Student', 'Middle-aged', 'Elderly (65+)'], age_decade: ['Under 20', '20s', '30s', '40s', '50s', '60s', '70+'], age_gender: ['Student · Female', 'Student · Male', 'Middle-aged · Female', 'Middle-aged · Male', 'Elderly (65+) · Female', 'Elderly (65+) · Male'], gender: ['Female', 'Male', 'Another / not stated'], res_region: ['United States', 'China', 'Other countries'], from_region: ['United States', 'China', 'Other countries'], mobility: ['From US, lives in US', 'From abroad, lives in US', 'Lives outside US'], group: ['Group 1', 'Group 2', 'Group 3', 'Group 4', 'Group 5', 'Group 6', 'Group 7', 'Group 8'], g2_vs_rest: ['Group 2', 'Other groups'] };
-    const G2_DIMS = ['all', 'age_cat', 'age_decade', 'age_gender', 'gender', 'res_region', 'from_region', 'mobility'];
-    const decade = (a) => (a == null ? null : a < 20 ? 'Under 20' : a >= 70 ? '70+' : `${Math.floor(a / 10) * 10}s`);
-    const ageGender = (r) => (r.age_cat && (r.gender === 'Female' || r.gender === 'Male') ? `${r.age_cat} · ${r.gender}` : null);
-    const val = (r, dim) => (dim === 'g2_vs_rest' ? (r.group === 'Group 2' ? 'Group 2' : 'Other groups') : dim === 'age_decade' ? decade(r.age) : dim === 'age_gender' ? ageGender(r) : r[dim]);
+  fn: (survey, scopes) => {
+    const DIMS = { all: ['All respondents'], age_cat: ['Student age (≤29)', 'Middle-aged (30–64)', 'Elderly (65+)'], age_decade: ['Under 20', '20s (20–29)', '30s (30–39)', '40s (40–49)', '50s (50–59)', '60s (60–69)', '70+'], age_gender: ['Student age (≤29) · Female', 'Student age (≤29) · Male', 'Middle-aged (30–64) · Female', 'Middle-aged (30–64) · Male', 'Elderly (65+) · Female', 'Elderly (65+) · Male'], gender: ['Female', 'Male', 'Another / not stated'], res_region: ['United States', 'China', 'Other countries'], from_region: ['United States', 'China', 'Other countries'], mobility: ['From US, lives in US', 'From abroad, lives in US', 'Lives outside US'], group: ['Group 1', 'Group 2', 'Group 3', 'Group 4', 'Group 5', 'Group 6', 'Group 7', 'Group 8'], g2_vs_rest: ['Group 2', 'Other groups'] };
+    const decade = (a) => (a == null ? null : a < 20 ? 'Under 20' : a >= 70 ? '70+' : `${Math.floor(a / 10) * 10}s (${Math.floor(a / 10) * 10}–${Math.floor(a / 10) * 10 + 9})`);
+    const val = (r, dim) => (dim === 'g2_vs_rest' ? (r.group === 'Group 2' ? 'Group 2' : 'Other groups')
+      : dim === 'age_decade' ? decade(r.age)
+      : dim === 'age_gender' ? (r.age_cat && (r.gender === 'Female' || r.gender === 'Male') ? `${r.age_cat} · ${r.gender}` : null)
+      : r[dim]);
+    const inScope = (r, sc) => (sc.base !== 'g2' || r.group === 'Group 2')
+      && (!sc.side || (r[`${sc.side}_country`] === sc.country && (!sc.state || r[`${sc.side}_state`] === sc.state)));
+    const dimsFor = (sc) => Object.entries(DIMS).filter(([d]) => sc.base !== 'g2' || !['group', 'g2_vs_rest'].includes(d));
     const OPTS = ['Reproductive health & longevity', 'Democratizing longevity (access)', 'AI/ML for aging & health', 'All three equally', 'None of them'];
     const out = [];
-    for (const scope of ['all', 'g2']) {
-      const base = scope === 'g2' ? survey.filter((r) => r.group === 'Group 2') : survey;
-      for (const [dim, segs] of Object.entries(DIMS)) {
-        if (scope === 'g2' && !G2_DIMS.includes(dim)) continue;
-        for (const segment of segs) for (const which of ['excite', 'concern']) {
-          const v = base.filter((r) => (dim === 'all' || val(r, dim) === segment) && r[`${which}_topic`] != null);
+    for (const sc of scopes) {
+      const base = survey.filter((r) => inScope(r, sc));
+      for (const [dim, segs] of dimsFor(sc)) for (const segment of segs) {
+        const rs = base.filter((r) => dim === 'all' || val(r, dim) === segment);
+        if (!rs.length && dim !== 'all') continue;
+        for (const which of ['excite', 'concern']) {
+          const v = rs.filter((r) => r[`${which}_topic`] != null);
           for (const topic of OPTS)
-            out.push({ scope, dim, segment, which, topic, pct: v.length ? Math.round(100 * v.filter((r) => r[`${which}_topic`] === topic).length / v.length) : null, n: v.length });
+            out.push({ scope: sc.scope, dim, segment, which, topic, pct: v.length ? Math.round(100 * v.filter((r) => r[`${which}_topic`] === topic).length / v.length) : null, n: v.length });
         }
       }
     }
@@ -450,29 +505,31 @@ dash.calc('topics', {
 });
 
 dash.calc('themes', {
-  inputs: ['survey'], title: 'Themes in open answers, by group',
+  inputs: ['survey', 'scopes'], title: 'Themes in open answers, by group',
   description: 'For each open question, how many answers in each group carry each theme tag, and the percent of that group’s answers.',
-  fn: (survey) => {
-    const DIMS = { all: ['All respondents'], age_cat: ['Student', 'Middle-aged', 'Elderly (65+)'], age_decade: ['Under 20', '20s', '30s', '40s', '50s', '60s', '70+'], age_gender: ['Student · Female', 'Student · Male', 'Middle-aged · Female', 'Middle-aged · Male', 'Elderly (65+) · Female', 'Elderly (65+) · Male'], gender: ['Female', 'Male', 'Another / not stated'], res_region: ['United States', 'China', 'Other countries'], from_region: ['United States', 'China', 'Other countries'], mobility: ['From US, lives in US', 'From abroad, lives in US', 'Lives outside US'], group: ['Group 1', 'Group 2', 'Group 3', 'Group 4', 'Group 5', 'Group 6', 'Group 7', 'Group 8'], g2_vs_rest: ['Group 2', 'Other groups'] };
-    const G2_DIMS = ['all', 'age_cat', 'age_decade', 'age_gender', 'gender', 'res_region', 'from_region', 'mobility'];
-    const decade = (a) => (a == null ? null : a < 20 ? 'Under 20' : a >= 70 ? '70+' : `${Math.floor(a / 10) * 10}s`);
-    const ageGender = (r) => (r.age_cat && (r.gender === 'Female' || r.gender === 'Male') ? `${r.age_cat} · ${r.gender}` : null);
-    const val = (r, dim) => (dim === 'g2_vs_rest' ? (r.group === 'Group 2' ? 'Group 2' : 'Other groups') : dim === 'age_decade' ? decade(r.age) : dim === 'age_gender' ? ageGender(r) : r[dim]);
+  fn: (survey, scopes) => {
+    const DIMS = { all: ['All respondents'], age_cat: ['Student age (≤29)', 'Middle-aged (30–64)', 'Elderly (65+)'], age_decade: ['Under 20', '20s (20–29)', '30s (30–39)', '40s (40–49)', '50s (50–59)', '60s (60–69)', '70+'], age_gender: ['Student age (≤29) · Female', 'Student age (≤29) · Male', 'Middle-aged (30–64) · Female', 'Middle-aged (30–64) · Male', 'Elderly (65+) · Female', 'Elderly (65+) · Male'], gender: ['Female', 'Male', 'Another / not stated'], res_region: ['United States', 'China', 'Other countries'], from_region: ['United States', 'China', 'Other countries'], mobility: ['From US, lives in US', 'From abroad, lives in US', 'Lives outside US'], group: ['Group 1', 'Group 2', 'Group 3', 'Group 4', 'Group 5', 'Group 6', 'Group 7', 'Group 8'], g2_vs_rest: ['Group 2', 'Other groups'] };
+    const decade = (a) => (a == null ? null : a < 20 ? 'Under 20' : a >= 70 ? '70+' : `${Math.floor(a / 10) * 10}s (${Math.floor(a / 10) * 10}–${Math.floor(a / 10) * 10 + 9})`);
+    const val = (r, dim) => (dim === 'g2_vs_rest' ? (r.group === 'Group 2' ? 'Group 2' : 'Other groups')
+      : dim === 'age_decade' ? decade(r.age)
+      : dim === 'age_gender' ? (r.age_cat && (r.gender === 'Female' || r.gender === 'Male') ? `${r.age_cat} · ${r.gender}` : null)
+      : r[dim]);
+    const inScope = (r, sc) => (sc.base !== 'g2' || r.group === 'Group 2')
+      && (!sc.side || (r[`${sc.side}_country`] === sc.country && (!sc.state || r[`${sc.side}_state`] === sc.state)));
+    const dimsFor = (sc) => Object.entries(DIMS).filter(([d]) => sc.base !== 'g2' || !['group', 'g2_vs_rest'].includes(d));
     const QS = ['q5', 'q7', 'q8', 'q9', 'q10', 'q11', 'rank', 'excite', 'concern', 'ethics'];
+    const THEMES = Object.fromEntries(QS.map((q) => [q, [...new Set(survey.flatMap((r) => (r[`t_${q}`] ? r[`t_${q}`].split('|') : [])))]]));
     const out = [];
-    for (const question of QS) {
-      const key = `t_${question}`;
-      const themes = [...new Set(survey.flatMap((r) => (r[key] ? r[key].split('|') : [])))];
-      for (const scope of ['all', 'g2']) {
-        const base = scope === 'g2' ? survey.filter((r) => r.group === 'Group 2') : survey;
-        for (const [dim, segs] of Object.entries(DIMS)) {
-          if (scope === 'g2' && !G2_DIMS.includes(dim)) continue;
-          for (const segment of segs) {
-            const v = base.filter((r) => (dim === 'all' || val(r, dim) === segment) && r[key]);
-            for (const theme of themes) {
-              const count = v.filter((r) => r[key].split('|').includes(theme)).length;
-              out.push({ scope, dim, segment, question, theme, count, pct: v.length ? Math.round(100 * count / v.length) : null, n: v.length });
-            }
+    for (const sc of scopes) {
+      const base = survey.filter((r) => inScope(r, sc));
+      for (const [dim, segs] of dimsFor(sc)) for (const segment of segs) {
+        const rs = base.filter((r) => dim === 'all' || val(r, dim) === segment);
+        if (!rs.length && dim !== 'all') continue;
+        for (const question of QS) {
+          const v = rs.filter((r) => r[`t_${question}`]);
+          for (const theme of THEMES[question]) {
+            const count = v.filter((r) => r[`t_${question}`].split('|').includes(theme)).length;
+            out.push({ scope: sc.scope, dim, segment, question, theme, count, pct: v.length ? Math.round(100 * count / v.length) : null, n: v.length });
           }
         }
       }
@@ -483,12 +540,12 @@ dash.calc('themes', {
 
 dash.calc('gaps', {
   inputs: ['themes'], title: 'Largest theme differences',
-  description: 'For each demographic (and for Group 2 alone), the themes whose percent differs most between its groups (groups with 20+ answers; 10+ within Group 2), top 12.',
+  description: 'For each demographic and respondent filter, the themes whose percent differs most between its groups (groups with 20+ answers, or 10+ when a filter is on), top 12.',
   fn: (themes) => {
     const SKIP = ['Other', 'No answer / unsure', 'General / no specifics'];
     const by = new Map();
     for (const r of themes) {
-      if (r.dim === 'all' || SKIP.includes(r.theme) || r.n < (r.scope === 'g2' ? 10 : 20)) continue;
+      if (r.dim === 'all' || SKIP.includes(r.theme) || r.n < (r.scope === 'all' ? 20 : 10)) continue;
       const k = `${r.scope}|${r.dim}|${r.question}|${r.theme}`;
       if (!by.has(k)) by.set(k, []);
       by.get(k).push(r);
@@ -500,8 +557,8 @@ dash.calc('gaps', {
       const lo = rs.reduce((a, b) => (b.pct < a.pct ? b : a));
       out.push({ scope: hi.scope, dim: hi.dim, question: hi.question, theme: hi.theme, hi_segment: hi.segment, hi_pct: hi.pct, lo_segment: lo.segment, lo_pct: lo.pct, gap: hi.pct - lo.pct });
     }
-    const keys = [...new Set(out.map((r) => `${r.scope}|${r.dim}`))];
-    return keys.flatMap((k) => out.filter((r) => `${r.scope}|${r.dim}` === k).sort((a, b) => b.gap - a.gap).slice(0, 12));
+    const keys = [...new Set(out.map((r) => `${r.scope}||${r.dim}`))];
+    return keys.flatMap((k) => out.filter((r) => `${r.scope}||${r.dim}` === k).sort((a, b) => b.gap - a.gap).slice(0, 12));
   },
 });
 
@@ -510,10 +567,10 @@ dash.calc('gaps', {
   const DIM_LABELS = { age_cat: 'Age group', age_decade: 'Age by decade', age_gender: 'Age & gender', gender: 'Gender', res_region: 'Where they live', from_region: 'Where they’re from', mobility: 'Origin & residence', group: 'Survey group', g2_vs_rest: 'Group 2 vs rest' };
   const G2_DIMS = ['age_cat', 'age_decade', 'age_gender', 'gender', 'res_region', 'from_region', 'mobility'];
   const SCOPES = { all: 'All groups', g2: 'Only Group 2' };
-  const decade = (a) => (a == null ? null : a < 20 ? 'Under 20' : a >= 70 ? '70+' : `${Math.floor(a / 10) * 10}s`);
+  const decade = (a) => (a == null ? null : a < 20 ? 'Under 20' : a >= 70 ? '70+' : `${Math.floor(a / 10) * 10}s (${Math.floor(a / 10) * 10}–${Math.floor(a / 10) * 10 + 9})`);
     const ageGender = (r) => (r.age_cat && (r.gender === 'Female' || r.gender === 'Male') ? `${r.age_cat} · ${r.gender}` : null);
     const val = (r, dim) => (dim === 'g2_vs_rest' ? (r.group === 'Group 2' ? 'Group 2' : 'Other groups') : dim === 'age_decade' ? decade(r.age) : dim === 'age_gender' ? ageGender(r) : r[dim]);
-  const SEGS = { age_cat: ['Student', 'Middle-aged', 'Elderly (65+)'], age_decade: ['Under 20', '20s', '30s', '40s', '50s', '60s', '70+'], age_gender: ['Student · Female', 'Student · Male', 'Middle-aged · Female', 'Middle-aged · Male', 'Elderly (65+) · Female', 'Elderly (65+) · Male'], gender: ['Female', 'Male', 'Another / not stated'], res_region: ['United States', 'China', 'Other countries'], from_region: ['United States', 'China', 'Other countries'], mobility: ['From US, lives in US', 'From abroad, lives in US', 'Lives outside US'], group: ['Group 1', 'Group 2', 'Group 3', 'Group 4', 'Group 5', 'Group 6', 'Group 7', 'Group 8'], g2_vs_rest: ['Group 2', 'Other groups'] };
+  const SEGS = { age_cat: ['Student age (≤29)', 'Middle-aged (30–64)', 'Elderly (65+)'], age_decade: ['Under 20', '20s (20–29)', '30s (30–39)', '40s (40–49)', '50s (50–59)', '60s (60–69)', '70+'], age_gender: ['Student age (≤29) · Female', 'Student age (≤29) · Male', 'Middle-aged (30–64) · Female', 'Middle-aged (30–64) · Male', 'Elderly (65+) · Female', 'Elderly (65+) · Male'], gender: ['Female', 'Male', 'Another / not stated'], res_region: ['United States', 'China', 'Other countries'], from_region: ['United States', 'China', 'Other countries'], mobility: ['From US, lives in US', 'From abroad, lives in US', 'Lives outside US'], group: ['Group 1', 'Group 2', 'Group 3', 'Group 4', 'Group 5', 'Group 6', 'Group 7', 'Group 8'], g2_vs_rest: ['Group 2', 'Other groups'] };
   const SEG_NAMES = { res_region: { 'United States': 'Lives in US', China: 'Lives in China', 'Other countries': 'Lives elsewhere' }, from_region: { 'United States': 'From US', China: 'From China', 'Other countries': 'From elsewhere' } };
   const segName = (dim, s) => (SEG_NAMES[dim] && SEG_NAMES[dim][s]) || s;
   const QUESTIONS = { q5: 'Q5 · How would you define aging?', q7: 'Q7 · Greatest challenge facing the aging population', q8: 'Q8 · Challenge to solve in the short term', q9: 'Q9 · Is action being taken on it?', q10: 'Q10 · Three things to maintain through life', q11: 'Q11 · What you can do to maintain them', rank: 'Reason for the topic ranking', excite: 'What excites you about the topics', concern: 'Greatest concern about the topics', ethics: 'Ethical considerations' };
@@ -542,6 +599,17 @@ dash.calc('gaps', {
     });
     scopesEl.appendChild(b);
   }
+  const sideEl = document.getElementById('loc-side');
+  for (const [k, label] of [['res', 'Lives in'], ['from', 'From']]) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = label; b.dataset.side = k; b.id = `side-${k}`;
+    b.addEventListener('click', () => dash.setParams({ side: k, country: null, state: null, qseg: null }));
+    sideEl.appendChild(b);
+  }
+  const countryEl = document.getElementById('loc-country'), stateEl = document.getElementById('loc-state');
+  countryEl.addEventListener('change', () => dash.setParams({ country: countryEl.value || null, state: null, qseg: null }));
+  stateEl.addEventListener('change', () => dash.setParams({ state: stateEl.value || null, qseg: null }));
+  document.getElementById('loc-clear').addEventListener('click', () => dash.setParams({ country: null, state: null, qseg: null }));
   const qsel = document.getElementById('qsel');
   for (const [k, label] of Object.entries(QUESTIONS)) qsel.appendChild(new Option(label, k));
   qsel.addEventListener('change', () => dash.setParams({ q: qsel.value, theme: null, qseg: null }));
@@ -675,13 +743,36 @@ dash.calc('gaps', {
 
   dash.onData(() => {
     const p = dash.params();
-    const scope = p.scope === 'g2' ? 'g2' : 'all';
-    const dim = scope === 'g2' && !G2_DIMS.includes(p.dim) ? 'age_cat' : (p.dim || 'age_cat');
+    const base = p.scope === 'g2' ? 'g2' : 'all';
+    const side = p.side === 'from' ? 'from' : 'res';
+    // location filter: only places with a precomputed respondent set (10+ respondents) are offered
+    const sco = dash.data('scopes');
+    const places = sco.status === 'ok' ? sco.data.filter((r) => r.base === base && r.side === side) : [];
+    const countryRows = places.filter((r) => !r.state).sort((a, b) => b.n - a.n);
+    const country = countryRows.some((r) => r.country === p.country) ? p.country : null;
+    const stateRows = places.filter((r) => r.state && r.country === country).sort((a, b) => b.n - a.n);
+    const state = country && stateRows.some((r) => r.state === p.state) ? p.state : null;
+    const scope = country ? `${base}|${side}|${country}|${state || ''}` : base;
+    const placeName = state ? `${state}, ${country}` : country;
+    const filterPhrase = [base === 'g2' ? 'in Group 2' : '', placeName ? `${side === 'res' ? 'living in' : 'from'} ${placeName}` : ''].filter(Boolean).join(' ');
+    for (const b of sideEl.children) b.setAttribute('aria-pressed', String(b.dataset.side === side));
+    if (countryEl !== document.activeElement) {
+      countryEl.replaceChildren(new Option('Any country', ''), ...countryRows.map((r) => new Option(`${r.country} (${r.n})`, r.country)));
+      countryEl.value = country || '';
+    }
+    if (stateEl !== document.activeElement) {
+      stateEl.replaceChildren(new Option(country ? (stateRows.length ? 'Any state / province' : 'No state with 10+ respondents') : 'Pick a country first', ''),
+        ...stateRows.map((r) => new Option(`${r.state} (${r.n})`, r.state)));
+      stateEl.value = state || '';
+      stateEl.disabled = !country || !stateRows.length;
+    }
+    document.getElementById('loc-clear').hidden = !country;
+    const dim = base === 'g2' && !G2_DIMS.includes(p.dim) ? 'age_cat' : (p.dim || 'age_cat');
     const q = p.q || 'q7';
-    for (const b of scopesEl.children) b.setAttribute('aria-pressed', String(b.dataset.scope === scope));
+    for (const b of scopesEl.children) b.setAttribute('aria-pressed', String(b.dataset.scope === base));
     for (const b of dimsEl.children) {
       b.setAttribute('aria-pressed', String(b.dataset.dim === dim));
-      b.disabled = scope === 'g2' && !G2_DIMS.includes(b.dataset.dim);
+      b.disabled = base === 'g2' && !G2_DIMS.includes(b.dataset.dim);
       b.title = b.disabled ? 'Not available when showing only Group 2' : '';
     }
     const D = (id) => { const d = dash.data(id); return d.status === 'ok' ? { ...d, data: d.data.filter((r) => r.scope === scope) } : d; };
@@ -694,8 +785,8 @@ dash.calc('gaps', {
     if (seg.status === 'ok') {
       const all = seg.data.find((d) => d.dim === 'all');
       total.textContent = all ? d3.format(',')(all.n) : '—';
-      total.dataset.where = `scope=${scope}&dim=all&segment=All%20respondents`;
-      document.getElementById('total-label').textContent = scope === 'g2' ? 'respondents in Group 2.' : 'respondents across 8 survey groups.';
+      total.dataset.where = where({ scope, dim: 'all', segment: 'All respondents' });
+      document.getElementById('total-label').textContent = filterPhrase ? `respondents ${filterPhrase}.` : 'respondents across 8 survey groups.';
       total.classList.remove('dash-skeleton');
       legend.replaceChildren(); legend.classList.remove('dash-skeleton');
       for (const s of SEGS[dim]) {
@@ -707,7 +798,9 @@ dash.calc('gaps', {
         it.append(i, nm, n); legend.appendChild(it);
       }
       const note = document.createElement('span'); note.className = 'note';
-      note.textContent = (dim === 'age_gender' ? 'Leaves out respondents with no age or another / unstated gender. ' : '') + (scope === 'g2' ? 'Showing Group 2 only. Hollow dot: fewer than 20 answers. Grey tick: all of Group 2.' : 'Hollow dot: fewer than 20 answers. Grey tick: all respondents.');
+      note.textContent = (dim === 'age_gender' ? 'Leaves out respondents with no age or another / unstated gender. ' : '')
+        + (filterPhrase ? `Showing respondents ${filterPhrase}. Grey tick: all of them. ` : 'Grey tick: all respondents. ')
+        + 'Hollow dot: fewer than 20 answers. Location filters list places with 10+ respondents.';
       legend.appendChild(note);
     } else { total.textContent = '—'; legend.replaceChildren(); if (seg.status === 'error') legend.textContent = 'Failed to load'; }
 
@@ -723,7 +816,7 @@ dash.calc('gaps', {
         const w = where({ scope, dim, question: t.question, theme: t.theme });
         const hi = document.createElement('b'); hi.textContent = `${t.hi_pct}%`; hi.dataset.source = 'gaps'; hi.dataset.field = 'hi_pct'; hi.dataset.where = w;
         const lo = document.createElement('b'); lo.textContent = `${t.lo_pct}%`; lo.dataset.source = 'gaps'; lo.dataset.field = 'lo_pct'; lo.dataset.where = w;
-        take.append(`Biggest difference by ${DIM_LABELS[dim].toLowerCase()}${scope === 'g2' ? ' within Group 2' : ''}: `, hi, ` of ${segName(dim, t.hi_segment)} vs `, lo,
+        take.append(`Biggest difference by ${DIM_LABELS[dim].toLowerCase()}${filterPhrase ? ` among respondents ${filterPhrase}` : ''}: `, hi, ` of ${segName(dim, t.hi_segment)} vs `, lo,
           ` of ${segName(dim, t.lo_segment)} mention “${t.theme}” in ${QSHORT[t.question]}.`);
       }
       gapsEl.replaceChildren(); gapsEl.classList.remove('dash-skeleton');
@@ -805,6 +898,9 @@ dash.calc('gaps', {
 
   // answers tagged with the selected theme
   function drawQuotes(scope, dim, q, theme, qseg, themes) {
+    const [sb, sside, scountry, sstate] = scope.split('|');
+    const inSc = (r) => (sb !== 'g2' || r.group === 'Group 2')
+      && (!sside || (r[`${sside}_country`] === scountry && (!sstate || r[`${sside}_state`] === sstate)));
     document.getElementById('quotes-title').textContent = `Answers tagged “${theme}”`;
     const chips = document.getElementById('quote-segs');
     chips.replaceChildren();
@@ -833,7 +929,7 @@ dash.calc('gaps', {
     tbody.replaceChildren();
     const sv = dash.data('survey');
     if (sv.status !== 'ok') return;
-    const rows = sv.data.filter((r) => r[`t_${q}`] && r[`t_${q}`].split('|').includes(theme) && (scope !== 'g2' || r.group === 'Group 2') && (!qseg || val(r, dim) === qseg) && r[`x_${q}`])
+    const rows = sv.data.filter((r) => r[`t_${q}`] && r[`t_${q}`].split('|').includes(theme) && inSc(r) && (!qseg || val(r, dim) === qseg) && r[`x_${q}`])
       .sort((a, b) => b[`x_${q}`].length - a[`x_${q}`].length).slice(0, 30);
     for (const r of rows) {
       const tr = document.createElement('tr');

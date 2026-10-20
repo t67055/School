@@ -82,9 +82,11 @@ col_of = {h: L(j) for j, h in enumerate(headers, start=1)}
 ss = wb.create_sheet('Theme Summary', 2)
 TR = "'Tagged Responses'"
 rng = lambda h: f"{TR}!${col_of[h]}$2:${col_of[h]}${n}"
+crit = lambda v: v[1:] if v.startswith('=') else f'"{v}"' 
 SEGS = [('All respondents', None, None),
-        ('Student', 'Age category', 'Student'), ('Middle-aged', 'Age category', 'Middle-aged'),
-        ('Elderly (65+)', 'Age category', 'Elderly (65+)'),
+        # age-category labels follow the cutoffs on the Notes sheet, so link to its header cells
+        ('=Notes!$B$9', 'Age category', '=Notes!$B$9'), ('=Notes!$C$9', 'Age category', '=Notes!$C$9'),
+        ('=Notes!$D$9', 'Age category', '=Notes!$D$9'),
         ('Female', 'Gender', 'Female'), ('Male', 'Gender', 'Male'),
         ('Lives in US', 'Residence – Country', 'United States'), ('Lives in China', 'Residence – Country', 'China')]
 ss['A1'] = 'Theme summary – share of respondents whose answer mentions each theme'
@@ -103,7 +105,6 @@ for key, col, label, cb in QUESTIONS:
     tag_h = f'{label} – {"status" if cb is None else "themes"}'
     ss.cell(r, 1, label).font = Font(name=FONT, bold=True, size=11, color='1F3864')
     r += 1
-    heads = ['Theme', 'Responses'] + [s[0] + ' %' for s in SEGS[:]]
     heads = ['Theme', 'Responses (all)'] + [s[0] for s in SEGS]
     for j, h in enumerate(heads, start=1):
         c = ss.cell(r, j, h)
@@ -117,7 +118,7 @@ for key, col, label, cb in QUESTIONS:
     den_row = r
     for j, (name, dcol, dval) in enumerate(SEGS, start=3):
         f = (f'=COUNTIF({rng(resp_h)},"?*")' if dcol is None
-             else f'=COUNTIFS({rng(resp_h)},"?*",{rng(dcol)},"{dval}")')
+             else f'=COUNTIFS({rng(resp_h)},"?*",{rng(dcol)},{crit(dval)})')
         c = ss.cell(r, j, f)
         c.font = bold
     r += 1
@@ -128,7 +129,7 @@ for key, col, label, cb in QUESTIONS:
         ss.cell(r, 2, f'=COUNTIF({rng(tag_h)},"*"&$A{r}&"*")').font = body
         for j, (name, dcol, dval) in enumerate(SEGS, start=3):
             num = (f'COUNTIF({rng(tag_h)},"*"&$A{r}&"*")' if dcol is None
-                   else f'COUNTIFS({rng(tag_h)},"*"&$A{r}&"*",{rng(dcol)},"{dval}")')
+                   else f'COUNTIFS({rng(tag_h)},"*"&$A{r}&"*",{rng(dcol)},{crit(dval)})')
             c = ss.cell(r, j, f'=IFERROR({num}/{L(j)}${den_row},"")')
             c.number_format = '0%'
             c.font = body

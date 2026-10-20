@@ -15,7 +15,9 @@ def region(c):
 
 def agecat(a, student_max=29, elderly_min=65):
     if a is None: return None
-    return 'Elderly (65+)' if a >= elderly_min else ('Student' if a <= student_max else 'Middle-aged')
+    if a >= elderly_min: return f'Elderly ({elderly_min}+)'
+    if a <= student_max: return f'Student age (≤{student_max})'
+    return f'Middle-aged ({student_max + 1}–{elderly_min - 1})'
 
 def gender(g):
     if not isinstance(g, str): return None
@@ -56,6 +58,8 @@ for i, r in df.reset_index(drop=True).iterrows():
         o['t_' + k] = '|'.join(tags[k].iloc[i]) or None
         t = r[col]
         o['x_' + k] = t[:600] if isinstance(t, str) else None
+    o['res_country'] = v(r['Residence – Country']); o['res_state'] = v(r['Residence – State/Province'])
+    o['from_country'] = v(r['From – Country']); o['from_state'] = v(r['From – State/Province'])
     rows.append(o)
 json.dump(rows, open(OUT, 'w'), ensure_ascii=False)
 print(len(rows), 'rows ->', OUT)

@@ -18,7 +18,8 @@ python3 -m http.server 8000   # then open http://localhost:8000
 What it shows, with one dot per group for whichever comparison you pick:
 
 - **Respondents:** all groups, or only Group 2.
-- **Compare by:** age group (student ≤29, middle-aged 30–64, elderly 65+), age by decade, age × gender (6 groups), gender, where they live, where they're from, origin & residence, survey group, Group 2 vs rest.
+- **Filter by location:** where people live or where they're from, by country and then state or province. Only places with 10+ respondents are listed.
+- **Compare by:** age group (Student age (≤29), Middle-aged (30–64), Elderly (65+)), age by decade, age × gender (6 groups), gender, where they live, where they're from, origin & residence, survey group, Group 2 vs rest.
 - Topic ranked #1 (personal and societal), yes/no attitudes and 1–5 ratings, guesses of the US 65+ share (actual: 18.0% in 2024, [US Census Bureau](https://www.census.gov/newsroom/press-releases/2025/older-adults-outnumber-children.html)), most exciting / concerning topic.
 - Themes in ten open-ended questions, the largest differences between groups, and the answers behind any theme.
 
@@ -42,6 +43,7 @@ cd scripts
 python3 build.py <original_survey.xlsx> combined.xlsx        # merge + standardize the 8 group sheets
 python3 add_tags.py combined.xlsx tagged.xlsx                 # tag open answers, add Tagged Responses + Theme Summary
 python3 export_site_data.py ../data/survey_responses.json     # data file for the site
+python3 make_public_copy.py tagged.xlsx ../data/Project_1_combined_dataset.xlsx   # drop roster + interviewer names
 ```
 
 `build.py` and `add_tags.py` write formulas, so open the workbook in Excel or recalculate it in LibreOffice to see the values.

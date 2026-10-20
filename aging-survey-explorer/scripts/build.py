@@ -377,7 +377,11 @@ for g, m in MAPS.items():
         rec.update({'Respondent ID': f'G{gnum}-{k:03d}', 'Group': gnum, 'Source row': rr['row']})
         if 'interviewer' in m and f('interviewer'):
             raw_iv = re.sub(r'\s*\(.*\)$', '', f('interviewer')).strip()
-            rec['Interviewer'] = INTERVIEWERS.get(raw_iv.lower(), raw_iv)
+            full = INTERVIEWERS.get(raw_iv.lower())
+            if not full:  # nickname, e.g. "Ben" -> the one member whose first name starts with it
+                hits = {v for k, v in INTERVIEWERS.items() if ' ' not in k and k.startswith(raw_iv.lower())}
+                full = hits.pop() if len(hits) == 1 else raw_iv
+            rec['Interviewer'] = full
         if 'timestamp' in m and f('timestamp'):
             rec['Response timestamp'] = pd.to_datetime(f('timestamp')).to_pydatetime()
         rec['Age'] = norm_age(f('age'))
@@ -493,8 +497,9 @@ age_col = get_column_letter(COLNAMES.index('Age') + 1)
 cat_col = COLNAMES.index('Age category') + 1
 for r in range(2, n + 1):
     a = f'{age_col}{r}'
-    ws.cell(r, cat_col).value = (f'=IF({a}="","",IF({a}>=Notes!$B$5,"Elderly (65+)",'
-                                 f'IF({a}<=Notes!$B$4,"Student","Middle-aged")))')
+    ws.cell(r, cat_col).value = (f'=IF({a}="","",IF({a}>=Notes!$B$5,"Elderly ("&Notes!$B$5&"+)",'
+                                 f'IF({a}<=Notes!$B$4,"Student age (≤"&Notes!$B$4&")",'
+                                 f'"Middle-aged ("&(Notes!$B$4+1)&"–"&(Notes!$B$5-1)&")")))')
 for j, (name, w) in enumerate(COLUMNS, start=1):
     ws.column_dimensions[get_column_letter(j)].width = w
     h = ws.cell(1, j)
@@ -520,22 +525,23 @@ rows = [
  ('Combined survey dataset – notes', None),
  (None, None),
  ('Age category cutoffs (edit the blue cells; the Combined sheet updates)', None),
- ('Student: age at or below', 29),
+ ('Student age: age at or below', 29),
  ('Elderly: age at or above', 65),
  ('Middle-aged', 'everyone between the two cutoffs'),
  (None, None),
  ('Respondents by group and age category', None),
- ('Group', 'Student'),
+ ('Group', '="Student age (≤"&$B$4&")"'),
 ]
 for r in rows:
     ns.append(list(r))
-ns['C9'], ns['D9'], ns['E9'], ns['F9'] = 'Middle-aged', 'Elderly (65+)', 'Age missing', 'Total'
+ns['C9'], ns['D9'], ns['E9'], ns['F9'] = '="Middle-aged ("&($B$4+1)&"–"&($B$5-1)&")"', '="Elderly ("&$B$5&"+)"', 'Age missing', 'Total'
 start = 10
 for i, gnum in enumerate(range(1, 9)):
     r = start + i
     ns.cell(r, 1, gnum)
-    for j, cat in enumerate(['Student', 'Middle-aged', 'Elderly (65+)'], start=2):
-        ns.cell(r, j, f'=COUNTIFS(Combined!$B:$B,$A{r},Combined!$G:$G,"{cat}")')
+    for j in range(2, 5):
+        L = get_column_letter(j)
+        ns.cell(r, j, f'=COUNTIFS(Combined!$B:$B,$A{r},Combined!$G:$G,{L}$9)')
     ns.cell(r, 5, f'=COUNTIFS(Combined!$B:$B,$A{r},Combined!$F:$F,"")')
     ns.cell(r, 6, f'=COUNTIF(Combined!$B:$B,$A{r})')
 tr = start + 8
